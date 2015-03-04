@@ -1,5 +1,5 @@
 import os, sys
-import errno
+import errno, re
 import argparse
 
 # Command Line Interface
@@ -21,6 +21,8 @@ parser.add_argument("-p", "--path",
 args = parser.parse_args()
 
 
+RE_USER_ACCEPT = re.compile(r'y(?:es|up|eah)?$', re.IGNORECASE)
+RE_USER_DENY   = re.compile(r'n(?:o|ope|ada)?$', re.IGNORECASE)
 
 def fatal_exception(exception, message=""): #TODO: cleanup after failure?
 	print("*******SCRIPT FAILED*******")
@@ -42,10 +44,21 @@ if not (args.path) is None:
 		print("things")
 	except OSError as exception:
 		if (exception.errno == errno.EEXIST):
-			while (response != "yes"): #regular expression here
-				response = input("Folder already exists at", args.path, "with the desired project name.",
-					"Do you wish to proceed (script will use this folder for the project)? [yes/no]")
-			if (response)
+			#print("Folder already exists at \'" + args.path + "\' with the desired project name.",
+			#      "Do you wish to proceed (script will use this folder for the project)? [yes/no]")
+			response = ""
+			message = ("Folder already exists at \'{}\' with the desired project name.".format(args.path) +
+				" Do you wish to proceed (script will use this folder for the project)? [yes/no]")
+			yes = False
+			no  = False
+			while not (yes or no):
+				response = input(message)
+				yes = RE_USER_ACCEPT.match(response)
+				no  = RE_USER_DENY.match(response)
+			if yes:
+				print("yes")
+			if no:
+				print("no")
 		else:
 			fatal_exception(exception, "Could not create project folder")
 	os.chdir(args.name)
