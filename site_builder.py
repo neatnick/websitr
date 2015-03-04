@@ -44,8 +44,6 @@ if not (args.path) is None:
 		print("things")
 	except OSError as exception:
 		if (exception.errno == errno.EEXIST):
-			#print("Folder already exists at \'" + args.path + "\' with the desired project name.",
-			#      "Do you wish to proceed (script will use this folder for the project)? [yes/no]")
 			response = ""
 			message = ("Folder already exists at \'{}\' with the desired project name.".format(args.path) +
 				" Do you wish to proceed (script will use this folder for the project)? [yes/no]")
