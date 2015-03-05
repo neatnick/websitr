@@ -89,9 +89,20 @@ try:
           +   '\tfont-size: 16px;\n'
           +   '\t-webkit-font-smoothing: antialiased;\n'
           +   '\tfont-family: $main-font-stack; }\n' )
-    
+    f = open('styles.scss', 'w')
+    f.write('@import \"base\";\n\n')
+    f = open('watch.py', 'w')
+    f.write('from subprocess import call\n\n'
+          + '# watch styles.scss\n'
+          + '# - all other sass files flow into this one so this is all we need\n'
+          + 'call(\"sass --watch styles.scss:../www/static/css/styles.css\", shell=True)')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
+
+try:
+    pass
+except Exception as exception:
+    fatal_exception(exception, "Could not pull in sass resources")
 
 print(args.name)
 
