@@ -1,6 +1,11 @@
-import os, sys
+import os, sys 
+import time, subprocess
 import errno, re
 import argparse
+
+# Requirements:
+#  Python3, Sass, Git
+#
 
 # Command Line Interface
 parser = argparse.ArgumentParser(
@@ -75,12 +80,8 @@ except OSError as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir('sass')
-    f = open('resources.scss', 'w')
-    f.write('@import \"./resources/mixins\";\n'
-          + '@import \"./resources/flex\";\n'
-          + '@import \"./resources/_media-queries\";' )
     f = open('base.scss', 'w')
-    f.write('@import \"resources\";\n\n'
+    f.write('@import \"./resources/resources\";\n\n'
           + '$main-font-stack: \'Lato\', sans-serif;\n\n'
           + 'body.main {\n'
           +   '\t@include fixpos(0);\n'
@@ -100,7 +101,53 @@ except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
-    pass
+    os.chdir('resources')
+    f = open('resources.json', 'w')
+    f.write('['
+          +   '\t{'
+          +     '\t\t\"name\": \"flex-box_mixins\",'
+          +     '\t\t\"url\": \"https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/flex.scss\"'
+          +   '\t},'
+          +   '\t{'
+          +     '\t\t\"name\": \"media-query_mixins\",'
+          +     '\t\t\"url\": \"https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss\"'
+          +   '\t},'
+          +   '\t{'
+          +     '\t\t\"name\": \"general_mixins\",'
+          +     '\t\t\"url\": \"https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss\"'
+          +   '\t}'
+          + ']' )
+    f.close()
+    f = open('resources.py', 'w')
+    f.write('import urllib.request\n'
+          + 'import json, shutil, os\n\n\n'
+          + 'def populate_resource(resource_name, url):\n'
+          +   '\ttry:\n'
+          +     '\t\tresponse = urllib.request.urlopen(url)\n'
+          +     '\t\tf = open(resource_name + \'.scss\', \'wb\')\n'
+          +     '\t\tshutil.copyfileobj(response, f)\n'
+          +   '\texcept Exception as exception:\n'
+          +     '\t\tif not (os.path.isfile(resource_name + \'.scss\')):\n'
+          +       '\t\t\tprint("Could not populate resource:", resource_name, "\\n  from url:", url)\n'
+          +       '\t\t\tprint("Exception:", exception)\n'
+          +       '\t\t\treturn False\n'
+          +     '\t\tprint("Unable to update resource:", resource_name, "\\n  from url:", url)\n'
+          +     '\t\tprint("Exception:", exception)\n'
+          +   '\treturn True\n\n'
+          + 'f = open(\'resources.json\', \'r\')\n'
+          + 'resources = json.loads(f.read())\n'
+          + 'resource_string = \"\"\n'
+          + 'for resource in resources:\n'
+          +   '\tif not (populate_resource(resource[\'name\'], resource[\'url\'])):\n'
+          +     '\t\tresource_string += "//"\n'
+          + '\tresource_string += "@import \\"{}\\";\\n".format(resource[\'name\'])\n\n'
+          + 'f = open(\'resources.scss\', \'w\')\n'
+          + 'f.write(resource_string)' )
+    f.close()
+    # race condition with this python call, make sure resources.json and resources.py has been created
+    # also files have to be closed so that the new script can reference them
+    # this isnt working for some reason
+    # subprocess.call("resources.py", shell=True)
 except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
 
