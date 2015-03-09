@@ -144,7 +144,8 @@ try:
           + 'f = open(\'resources.scss\', \'w\')\n'
           + 'f.write(resource_string)' )
     f.close()
-    exec(open("resources.py", 'r').read())
+    # exec(open("resources.py", 'r').read())
+    subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
 except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
 
