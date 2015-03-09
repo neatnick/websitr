@@ -144,10 +144,7 @@ try:
           + 'f = open(\'resources.scss\', \'w\')\n'
           + 'f.write(resource_string)' )
     f.close()
-    # race condition with this python call, make sure resources.json and resources.py has been created
-    # also files have to be closed so that the new script can reference them
-    # this isnt working for some reason
-    # subprocess.call("resources.py", shell=True)
+    exec(open("resources.py", 'r').read())
 except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
 
