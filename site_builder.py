@@ -1,5 +1,6 @@
 import os, sys 
 import time, subprocess
+import urllib.request, shutil
 import errno, re
 import argparse
 
@@ -26,8 +27,10 @@ parser.add_argument("-p", "--path",
 args = parser.parse_args()
 
 
+
 RE_USER_ACCEPT = re.compile(r'y(?:es|up|eah)?$', re.IGNORECASE)
 RE_USER_DENY   = re.compile(r'n(?:o|ope|ada)?$', re.IGNORECASE)
+
 
 def fatal_exception(exception, message=""): #TODO: cleanup after failure?
     print("*******SCRIPT FAILED*******")
@@ -36,6 +39,7 @@ def fatal_exception(exception, message=""): #TODO: cleanup after failure?
     print("Exception: ", exception)
     sys.exit(1)
 
+
 def non_fatal_exception(exception, message):
     while (1):
         response = input(message)
@@ -43,6 +47,19 @@ def non_fatal_exception(exception, message):
             return
         if (RE_USER_DENY.match(response)):
             fatal_exception(exception, "Script canceled by user")
+
+
+def populate_static_resource(resources):
+    url = 'https://raw.githubusercontent.com/SwankSwashbucklers/website-template/master/static'
+    for resource_name in resources:
+        resource_url = "{}/{}".format(url, resource_name)
+        try:
+            with urllib.request.urlopen(resource_url) as response, open(resource_name, 'wb') as f:
+                shutil.copyfileobj(response, f)
+        except Exception as exception:
+            fatal_exception(exception, 
+                "Could not populate resource: {}\n  from url: {}".format(resource_name, resource_url))
+
 
 
 print("Create folder for new project")
@@ -80,70 +97,16 @@ except OSError as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir('sass')
-    f = open('base.scss', 'w')
-    f.write('@import \"./resources/resources\";\n\n'
-          + '$main-font-stack: \'Lato\', sans-serif;\n\n'
-          + 'body.main {\n'
-          +   '\t@include fixpos(0);\n'
-          +   '\tmargin: 0;\n'
-          +   '\tpadding: 0;\n'
-          +   '\tfont-size: 16px;\n'
-          +   '\t-webkit-font-smoothing: antialiased;\n'
-          +   '\tfont-family: $main-font-stack; }\n' )
-    f = open('styles.scss', 'w')
-    f.write('@import \"base\";\n\n')
-    f = open('watch.py', 'w')
-    f.write('from subprocess import call\n\n'
-          + '# watch styles.scss\n'
-          + '# - all other sass files flow into this one so this is all we need\n'
-          + 'call(\"sass --watch styles.scss:../www/static/css/styles.css\", shell=True)')
+    populate_static_resource(['base.scss', 'watch.py'])
+    with open('styles.scss', 'w') as f:
+        f.write('@import \"base\";\n\n')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
     os.chdir('resources')
-    f = open('resources.json', 'w')
-    f.write('['
-          +   '\t{'
-          +     '\t\t\"name\": \"flex-box_mixins\",'
-          +     '\t\t\"url\": \"https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/flex.scss\"'
-          +   '\t},'
-          +   '\t{'
-          +     '\t\t\"name\": \"media-query_mixins\",'
-          +     '\t\t\"url\": \"https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss\"'
-          +   '\t},'
-          +   '\t{'
-          +     '\t\t\"name\": \"general_mixins\",'
-          +     '\t\t\"url\": \"https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss\"'
-          +   '\t}'
-          + ']' )
-    f.close()
-    f = open('resources.py', 'w')
-    f.write('import urllib.request\n'
-          + 'import json, shutil, os\n\n\n'
-          + 'def populate_resource(resource_name, url):\n'
-          +   '\ttry:\n'
-          +     '\t\tresponse = urllib.request.urlopen(url)\n'
-          +     '\t\tf = open(resource_name + \'.scss\', \'wb\')\n'
-          +     '\t\tshutil.copyfileobj(response, f)\n'
-          +   '\texcept Exception as exception:\n'
-          +     '\t\tif not (os.path.isfile(resource_name + \'.scss\')):\n'
-          +       '\t\t\tprint("Could not populate resource:", resource_name, "\\n  from url:", url)\n'
-          +       '\t\t\tprint("Exception:", exception)\n'
-          +       '\t\t\treturn False\n'
-          +     '\t\tprint("Unable to update resource:", resource_name, "\\n  from url:", url)\n'
-          +     '\t\tprint("Exception:", exception)\n'
-          +   '\treturn True\n\n'
-          + 'f = open(\'resources.json\', \'r\')\n'
-          + 'resources = json.loads(f.read())\n'
-          + 'resource_string = \"\"\n'
-          + 'for resource in resources:\n'
-          +   '\tif not (populate_resource(resource[\'name\'], resource[\'url\'])):\n'
-          +     '\t\tresource_string += "//"\n'
-          + '\tresource_string += "@import \\"{}\\";\\n".format(resource[\'name\'])\n\n'
-          + 'f = open(\'resources.scss\', \'w\')\n'
-          + 'f.write(resource_string)' )
-    f.close()
+    populate_static_resource(['resources.json', 'resources.py'])
+
     # exec(open("resources.py", 'r').read())
     subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
 except Exception as exception:
