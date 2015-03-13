@@ -27,7 +27,7 @@ parser.add_argument("-p", "--path",
 args = parser.parse_args()
 
 
-
+SCRIPT_DIR     = os.getcwd()
 RE_USER_ACCEPT = re.compile(r'y(?:es|up|eah)?$', re.IGNORECASE)
 RE_USER_DENY   = re.compile(r'n(?:o|ope|ada)?$', re.IGNORECASE)
 
@@ -50,15 +50,13 @@ def non_fatal_exception(exception, message):
 
 
 def populate_static_resource(resources):
-    url = 'https://raw.githubusercontent.com/SwankSwashbucklers/website-template/master/static'
     for resource_name in resources:
-        resource_url = "{}/{}".format(url, resource_name)
+        src_path = os.path.join(SCRIPT_DIR, "static/{}".format(resource_name))
         try:
-            with urllib.request.urlopen(resource_url) as response, open(resource_name, 'wb') as f:
-                shutil.copyfileobj(response, f)
+            shutil.copy(src_path, resource_name)
         except Exception as exception:
             fatal_exception(exception, 
-                "Could not populate resource: {}\n  from url: {}".format(resource_name, resource_url))
+                "Could not populate resource: {}".format(resource_name))
 
 
 
@@ -111,6 +109,15 @@ try:
     subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
 except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
+
+
+print("Creating bottle project")
+try:
+    os.chdir('../../www')
+    with open('app.py', 'w') as f:
+        f.write('test')
+except Exception as exception:
+    fatal_exception(exception, "Could not build bottle project")
 
 print(args.name)
 
