@@ -1,0 +1,52 @@
+// General Mixins by SwankSwashbucklers
+// Source: https://github.com/SwankSwashbucklers/Some-Sassy-Mixins.git
+// --------------------------------------------------------------------------------
+
+
+
+// Absolute and Fixed Positioning
+// --------------------------------------------------------------------------------
+
+@mixin pos($top: auto, $right: auto, $bottom: auto, $left: auto, $pos: absolute) {
+	position: $pos;
+	top: $top;
+	right: $right;
+	bottom: $bottom;
+	left: $left;
+}
+@mixin positioning($pos: absolute, $top: null, $right: null, $bottom: null, $left: null) {
+	@if $left { 
+		@include pos($top, $right, $bottom, $left, $pos);
+	} @else if $bottom { 
+		@include pos($top, $right, $bottom, $right, $pos);
+	} @else if $right { 
+		@include pos($top, $right, $top, $right, $pos);
+	} @else if $top { 
+		@include pos($top, $top, $top, $top, $pos);
+	} @else { 
+		@include pos();
+	}
+}
+
+// Absolute Positioning
+@mixin absolute-positioning($top: null, $right: null, $bottom: null, $left: null) {
+	$pos: absolute;
+	@include positioning($pos, $top, $right, $bottom, $left);
+}
+	// Shorter version
+@mixin abspos($top: null, $right: null, $bottom: null, $left: null) { 
+	@include absolute-positioning($top, $right, $bottom, $left);
+}
+
+// Fixed Positioning
+@mixin fixed-positioning($top: null, $right: null, $bottom: null, $left: null) {
+	$pos: fixed;
+	@include positioning($pos, $top, $right, $bottom, $left);
+}
+	// Shorter version
+@mixin fixpos($top: null, $right: null, $bottom: null, $left: null) { 
+	@include fixed-positioning($top, $right, $bottom, $left); 
+}
+
+// Shapes (coming soon)
+// --------------------------------------------------------------------------------

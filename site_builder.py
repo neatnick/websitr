@@ -10,7 +10,6 @@ import argparse
 
 # Command Line Interface
 parser = argparse.ArgumentParser(
-    prog="SITE_BUILDER", 
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description="Build Nick\'s prefered default project starting point for new websites."   +
     " The project will precompile sass files for css, and use bottle as the web framework." +
@@ -34,8 +33,7 @@ RE_USER_DENY   = re.compile(r'n(?:o|ope|ada)?$', re.IGNORECASE)
 
 def fatal_exception(exception, message=""): #TODO: cleanup after failure?
     print("*******SCRIPT FAILED*******")
-    if (message):
-        print(message)
+    if (message): print(message)
     print("Exception: ", exception)
     sys.exit(1)
 

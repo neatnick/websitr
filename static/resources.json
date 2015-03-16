@@ -1,14 +1,14 @@
 [
     {
-        "name": "flex-box_mixins",
+        "name": "flex-box_mixins.scss",
         "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/flex.scss"
     },
     {
-        "name": "media-query_mixins",
+        "name": "media-query_mixins.scss",
         "url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss"
     },
     {
-        "name": "general_mixins",
+        "name": "general_mixins.scss",
         "url": "https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss"
     }
 ]
