@@ -1,3 +1,12 @@
+"""
+files or directories with a ! in front of them will not be copied into the project
+files or directories with a ~ in front of them will not have a route added for them
+
+TODO: should only explicit resource paths be generated?
+this would allow for the second condition above for image files and fonts and stuff, 
+or you could just change the regex to not match files with ~ in front of them
+"""
+
 # arguments:
 # - path to put the generated site
 # - whether to update non-local site files (i.e. bottle)
@@ -22,7 +31,7 @@ import argparse
 # Command Line Interface
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    description="Build stuff")
+    description=__doc__ )
 parser.add_argument("-p", "--path", 
     type=str,
     default=tempfile.gettempdir(),
@@ -43,7 +52,7 @@ def fatal_exception(exception, message="", cleanup=True):
     if (cleanup):
         try:
             os.chdir(args.path)
-            shutil.rmtree(os.path.join(args.path, 'wwww'))
+            shutil.rmtree('wwww')
         except Exception as e:
             print(e)
     sys.exit(1)
@@ -189,4 +198,4 @@ try:
               + "else:                                                                                              \n"
               +   "\trun(host=args.ip, port=args.port, debug=True, reloader=True) #development                      \n" )
 except Exception as e:
-        fatal_exception(e)
+    fatal_exception(e)
