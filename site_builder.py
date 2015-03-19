@@ -307,8 +307,23 @@ print("Populating project resources")
 os.chdir(PROJECT_DIR)
 try:
     os.chdir('res')
+    if not args.favicon is None:
+        if not os.path.isabs(args.favicon):
+            args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
+        if os.path.isdir(args.favicon):
+            args.favicon = os.path.join(args.favicon, "favicon.png")
+        shutil.copy(args.favicon, os.path.split(args.favicon)[1])
 except Exception as exception:
-    fatal_exception(exception, "Could not populate project resources")
+    non_fatal_exception(exception, "Unable to import favicon image. Do you wish to proceed? [yes/no]")
+
+try:
+    os.chdir('res')
+    if os.path.isabs(args.favicon):
+        if os.path.isfile(args.favicon):
+            shutil.copy(args.favicon, )
+
+except Exception as exception:
+    fatal_exception(exception, "Could not import project resources")
 
 try:
     os.chdir('static')
