@@ -243,6 +243,7 @@ def populate_template(filename, template, **kargs):
 
 
 
+
 print("Creating folder for new project")
 try:
     os.chdir(args.path)
@@ -260,6 +261,7 @@ except OSError as exception:
         fatal_exception(exception, "Could not create project folder", False)
 
 
+
 print("Building out directory structure for the project")
 os.chdir(PROJECT_DIR)
 try:
@@ -271,6 +273,7 @@ try:
     os.makedirs("res/static")
 except OSError as exception:
     fatal_exception(exception, "Could not build project directory structure")
+
 
 
 print("Creating sass scripts and pulling in resources")
@@ -293,6 +296,7 @@ except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
 
 
+
 print("Creating default views for bottle project")
 os.chdir(PROJECT_DIR)
 try:
@@ -303,25 +307,49 @@ except Exception as exception:
     fatal_exception(exception, "Could not build default views")
 
 
+
 print("Populating project resources")
 os.chdir(PROJECT_DIR)
-try:
+try: #TODO: add checking for not png, and to make sure its the right size
     os.chdir('res')
     if not args.favicon is None:
         if not os.path.isabs(args.favicon):
             args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
         if os.path.isdir(args.favicon):
             args.favicon = os.path.join(args.favicon, "favicon.png")
-        shutil.copy(args.favicon, os.path.split(args.favicon)[1])
+        shutil.copy(args.favicon, "favicon.png")
 except Exception as exception:
     non_fatal_exception(exception, "Unable to import favicon image. Do you wish to proceed? [yes/no]")
 
 try:
-    os.chdir('res')
-    if os.path.isabs(args.favicon):
-        if os.path.isfile(args.favicon):
-            shutil.copy(args.favicon, )
-
+    if not args.resources is None:
+        resources = []
+        for resource_path in args.resources:
+            if not os.path.isabs(resource_path):
+                resource_path = os.path.join(SCRIPT_DIR, resource_path)
+            if os.path.isfile(resource_path):
+                resource.append(resource_path)
+            elif os.path.isdir(resource_path):
+                for root, dirs, files in os.walk(resource_path):
+                    for filename in files:
+                        resources.append(os.path.join(root, filename))
+        for resource in resources: # TODO: improve this for svg fonts and databases and audio files and video files etc.
+            name = os.path.split(resource)[-1]
+            ext = os.path.splitext(resource)[-1].lower()
+            if ext == '.svg':
+                if (name[:-4] + '.eot') in resources
+                or (name[:-4] + '.eot') in resources
+                or (name[:-4] + '.eot') in resources: 
+                    # if there is a font file of the same name this one is probably a font too
+                    shutil.copy(resource, os.path.join('font', name))
+                else:
+                    shutil.copy(resource, os.path.join('img', name))
+            elif ext in ['.png', '.jpg', '.jpeg', '.gif']:
+                shutil.copy(resource, os.path.join('img', name))
+            elif ext in ['.eot', '.ttf', '.woff']:
+                shutil.copy(resource, os.path.join('font', name))
+            else:
+                shutil.copy(resource, os.path.join('static', name))
 except Exception as exception:
     fatal_exception(exception, "Could not import project resources")
 
@@ -330,6 +358,7 @@ try:
     populate_template('robots.txt', ROBOTS_TEMPLATE)
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
+
 
 
 print("Generating website in temporary directory")
