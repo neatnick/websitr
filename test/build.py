@@ -141,9 +141,13 @@ def fatal_exception(exception, message="", cleanup=True):
     sys.exit(1)
 
 
-def get_routes_for_directory(directory): #TODO: do not include directories like .DS_STORE
+def get_routes_for_directory(directory, destination): #TODO: do not include directories like .DS_STORE
     try:
         routes = []
+        destination = os.path.join(args.path, destination)
+        if not os.path.isdir(destination):
+            os.makedirs(destination)
+        os.chdir(destination)
         src_path = os.path.join(SCRIPT_DIR, directory)
         for root, dirs, files in os.walk(src_path):
             for dirname in dirs:
@@ -178,40 +182,22 @@ except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
 
 try:
-    os.mkdir("www")
-    os.chdir("www")
-
-    os.mkdir("views")
-    os.chdir("views")
-    main_routes = get_routes_for_directory("dev/views")
-    os.chdir("..")
-
-    os.mkdir("static")
-    os.chdir("static")
-    misc_routes = get_routes_for_directory("res/static")
-
-    os.mkdir("img")
-    os.chdir("img")
-    img_routes = get_routes_for_directory("res/img")
-    os.chdir("..")
-
-    os.mkdir("font")
-    os.chdir("font")
-    font_routes = get_routes_for_directory("res/font")
-    #os.chdir("..")
-
+    main_routes = get_routes_for_directory("dev/views", "www/views")
+    misc_routes = get_routes_for_directory("res/static", "www/static/static")
+    img_routes = get_routes_for_directory("res/img", "www/static/img")
+    font_routes = get_routes_for_directory("res/font", "www/static/font")
     #TODO: generate favicon folder with an api call
-    #os.mkdir("favicon")
-    #os.chdir("favicon")
     #favicon_routes = get_routes_for_directory("static/favicon")
-    os.chdir("../..")
+    os.chdir(os.path.join(args.path, "www"))
 
-    #import bottle into the project
+
+    # import bottle into the project
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
     with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
         shutil.copyfileobj(response, f)
 
-    #generate app.py
+
+    # generate app.py
     main_routes_string = ""
     for route in main_routes:
         delimiter = '\\' if os.name == 'nt' else '/'
