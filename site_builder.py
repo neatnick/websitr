@@ -239,7 +239,7 @@ def populate_template(filename, template, **kargs):
             content = content[1:] #to remove leading newline 
             f.write(content) #write data to the new file
     except Exception as exception:
-        raise exception #test this
+        raise exception
 
 
 
@@ -263,8 +263,8 @@ except OSError as exception:
 
 
 print("Building out directory structure for the project")
-os.chdir(PROJECT_DIR)
 try:
+    os.chdir(PROJECT_DIR)
     os.makedirs("dev/coffee")
     os.makedirs("dev/sass/resources")
     os.makedirs("dev/views")
@@ -277,9 +277,8 @@ except OSError as exception:
 
 
 print("Creating sass scripts and pulling in resources")
-os.chdir(PROJECT_DIR)
 try:
-    os.chdir('dev/sass')
+    os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
     populate_template('base.scss', BASE_SASS_TEMPLATE)
     populate_template('styles.scss', STYLES_SASS_TEMPLATE)
     populate_template('watch.py', WATCH_SASS_TEMPLATE)
@@ -287,7 +286,7 @@ except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
-    os.chdir('resources')
+    os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/resources'))
     populate_template('resources.py', RESOURCES_SASS_TEMPLATE)
 
     # exec(open("resources.py", 'r').read())
@@ -298,9 +297,8 @@ except Exception as exception:
 
 
 print("Creating default views for bottle project")
-os.chdir(PROJECT_DIR)
 try:
-    os.chdir('dev/views')
+    os.chdir(os.path.join(PROJECT_DIR, 'dev/views'))
     populate_template('~head.tpl', HEAD_TEMPLATE, title=args.name, description="Welcome to {}!".format(args.name))
     populate_template('index.tpl', INDEX_TEMPLATE)
 except Exception as exception:
@@ -309,9 +307,8 @@ except Exception as exception:
 
 
 print("Populating project resources")
-os.chdir(PROJECT_DIR)
 try: #TODO: add checking for not png, and to make sure its the right size
-    os.chdir('res')
+    os.chdir(os.path.join(PROJECT_DIR, 'res'))
     if not args.favicon is None:
         if not os.path.isabs(args.favicon):
             args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
@@ -322,6 +319,7 @@ except Exception as exception:
     non_fatal_exception(exception, "Unable to import favicon image. Do you wish to proceed? [yes/no]")
 
 try:
+    os.chdir(os.path.join(PROJECT_DIR, 'res'))
     if not args.resources is None:
         resources = []
         for resource_path in args.resources:
@@ -333,7 +331,7 @@ try:
                 for root, dirs, files in os.walk(resource_path):
                     for filename in files:
                         resources.append(os.path.join(root, filename))
-        for resource in resources: # TODO: improve this for svg fonts and databases and audio files and video files etc.
+        for resource in resources: #TODO: could use some improvement
             name = os.path.split(resource)[-1]
             ext = os.path.splitext(resource)[-1].lower()
             if ext == '.svg':
@@ -354,17 +352,17 @@ except Exception as exception:
     fatal_exception(exception, "Could not import project resources")
 
 try:
-    os.chdir('static')
-    populate_template('robots.txt', ROBOTS_TEMPLATE)
+    os.chdir(os.path.join(PROJECT_DIR, 'res/static'))
+    if not os.path.isfile('robots.txt'): #user may have imported their own robots.txt
+        populate_template('robots.txt', ROBOTS_TEMPLATE)
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
 
 
 
 print("Generating website in temporary directory")
-os.chdir(PROJECT_DIR)
 try:
-    pass
+    os.chdir(PROJECT_DIR)
     #populate_static_resource('build.py')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
