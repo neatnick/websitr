@@ -1,5 +1,15 @@
 import urllib.request
-import json, shutil, os
+import shutil, os
+
+
+RESOURCES = [ { "name": "flex-box_mixins.scss",
+        		"url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/flex.scss" },
+
+    		  { "name": "media-query_mixins.scss",
+        		"url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss" },
+
+    		  { "name": "general_mixins.scss",
+        		"url": "https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss" } ]
 
 
 def populate_resource(resource_name, resource_url):
@@ -12,9 +22,8 @@ def populate_resource(resource_name, resource_url):
 	return os.path.isfile(resource_name)
 
 
-with open('resources.json', 'r') as f_data, open('resources.scss', 'w') as f_out:
-	resources = json.loads(f_data.read())
-	for resource in resources:
+with open('resources.scss', 'w') as f:
+	for resource in RESOURCES:
 		if not (populate_resource(resource['name'], resource['url'])):
-			f_out.write("//")
-		f_out.write("@import \"{}\";\n".format(resource['name']))
+			f.write("//")
+		f.write("@import \"{}\";\n".format(resource['name']))
