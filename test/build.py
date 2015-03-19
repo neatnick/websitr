@@ -57,6 +57,7 @@ from bottle import static_file, template
 import argparse                      
 
 ${commandline_header}
+
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )                                
@@ -68,6 +69,7 @@ parser.add_argument('-l', '--local',
 args = parser.parse_args()                                                                     
 
 ${main_routes_header}
+
 @route('/')
 def load_index():
     return template('index')
@@ -100,6 +102,7 @@ def javascript(filename):
     return static_file(filename, root='static/js')
 
 ${run_server_header}
+
 if args.deploy:
     run(host=args.ip, port=args.port, server='cherrypy') #deployment
 else:
@@ -109,13 +112,15 @@ else:
 MAIN_ROUTE_TEMPLATE = Template("""
 @route('/${path}')
 def ${method_name}():
-    return template('${template}')""" )
+    return template('${template}')
+""" )
 
 
 STATIC_ROUTE_TEMPLATE = Template("""
 @get('/${path}')
 def ${method_name}():
-    return static_file('${file}', root='${root}')""" )
+    return static_file('${file}', root='${root}')
+""" )
 
 
 ########################################################################################################################
@@ -166,7 +171,7 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
 def get_main_header(header):
     header = ('#'*5) + ' ' + header.upper() + ' '
     header += ('#'*(121-len(header)))
-    return ('#'*121) + '\n' + header + "\n" + ('#'*121)
+    return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
 
 
 def get_secondary_header(header):
