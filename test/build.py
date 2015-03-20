@@ -129,8 +129,7 @@ def ${method_name}():
 
 SCRIPT_DIR      = os.getcwd()
 PROJECT_NAME    = os.path.relpath(SCRIPT_DIR, "..")
-RE_NOT_INCLUDED = re.compile(r'^!')
-RE_NOT_ADDED    = re.compile(r'^~')
+API_KEY         = 'adee4e8e0dc7c5fcc929047cf747f01b44bae8e5'
 
 
 def fatal_exception(exception, message="", cleanup=True):
@@ -156,12 +155,12 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
         src_path = os.path.join(SCRIPT_DIR, directory)
         for root, dirs, files in os.walk(src_path):
             for dirname in dirs:
-                if (RE_NOT_INCLUDED.match(dirname)):
+                if (dirname.startswith('!')):
                     dirs.remove(dirname)
             for filename in files:
-                if not (RE_NOT_INCLUDED.match(filename)):
+                if not (filename.startswith('!')):
                     shutil.copy(os.path.join(root, filename), filename)
-                    if not (RE_NOT_ADDED.match(filename)):
+                    if not (filename.startswith('~')):
                         routes.append(os.path.normpath(os.path.join(os.path.relpath(root, src_path), filename)))
         return routes
     except Exception as e:
@@ -182,29 +181,15 @@ def get_secondary_header(header):
 
 
 try:
+    args.path = os.path.abspath(args.path)
     os.chdir(args.path)
 except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
 
 try:
-    main_routes = get_routes_for_directory("dev/views", "www/views")
-    misc_routes = get_routes_for_directory("res/static", "www/static/static")
-    img_routes = get_routes_for_directory("res/img", "www/static/img")
-    font_routes = get_routes_for_directory("res/font", "www/static/font")
-    #TODO: generate favicon folder with an api call
-    #favicon_routes = get_routes_for_directory("static/favicon")
-    os.chdir(os.path.join(args.path, "www"))
-
-
-    # import bottle into the project
-    bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
-    with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
-        shutil.copyfileobj(response, f)
-
-
     # generate app.py
     main_routes_string = ""
-    for route in main_routes:
+    for route in get_routes_for_directory("dev/views", "www/views"):
         delimiter = '\\' if os.name == 'nt' else '/'
         path_array = route.split(delimiter)
         path_array[-1] = path_array[-1][:-4]
@@ -214,13 +199,18 @@ try:
             template=path_array[-1] )
 
     static_routes_string = ""
-    for route in misc_routes:
+    for route in get_routes_for_directory("res/static", "www/static/static"):
         static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
             path=route,
             method_name=route.split(".")[0],
             file=route,
             root='static' )
 
+    img_routes = get_routes_for_directory("res/img", "www/static/img")
+    font_routes = get_routes_for_directory("res/font", "www/static/font")
+    #TODO: generate favicon folder with an api call
+    #favicon_routes = get_routes_for_directory("static/favicon")
+    os.chdir(os.path.join(args.path, "www"))
     #TODO: api routes
     with open('app.py', 'w') as f:
         content = APP_PY_TEMPLATE.safe_substitute(
@@ -236,5 +226,10 @@ try:
             run_server_header=get_main_header("Run Server") )
         content = content[1:] #to remove leading newline 
         f.write(content) #write data to the new file
+
+    # import bottle into the project
+    bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
+    with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
+        shutil.copyfileobj(response, f)
 except Exception as e:
     fatal_exception(e)
