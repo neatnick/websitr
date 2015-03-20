@@ -336,8 +336,8 @@ try:
             ext = os.path.splitext(resource)[-1].lower()
             if ext == '.svg':
                 if (name[:-4] + '.eot') in resources
-                or (name[:-4] + '.eot') in resources
-                or (name[:-4] + '.eot') in resources: 
+                or (name[:-4] + '.ttf') in resources
+                or (name[:-4] + '.woff') in resources: 
                     # if there is a font file of the same name this one is probably a font too
                     shutil.copy(resource, os.path.join('font', name))
                 else:
@@ -363,6 +363,6 @@ except Exception as exception:
 print("Generating website in temporary directory")
 try:
     os.chdir(PROJECT_DIR)
-    #populate_static_resource('build.py')
+    populate_static_resource('build.py')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
