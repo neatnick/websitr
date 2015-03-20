@@ -335,9 +335,7 @@ try:
             name = os.path.split(resource)[-1]
             ext = os.path.splitext(resource)[-1].lower()
             if ext == '.svg':
-                if (name[:-4] + '.eot') in resources
-                or (name[:-4] + '.ttf') in resources
-                or (name[:-4] + '.woff') in resources: 
+                if any(res in resources for res in [name[:-4] + '.eot', name[:-4] + '.ttf', name[:-4] + '.woff']): 
                     # if there is a font file of the same name this one is probably a font too
                     shutil.copy(resource, os.path.join('font', name))
                 else:
