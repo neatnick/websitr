@@ -108,7 +108,9 @@ def populate_resource(resource_name, resource_url):
             shutil.copyfileobj(response, f)
     except Exception as e:
         message = "Could not populate resource" if not (os.path.isfile(resource_name)) else "Unable to update resource"
-        print("{}: {}\n  from url: {}\nException: {}".format(message, resource_name, resource_url, e))
+        print(message, ':', resource_name)
+        print('  from url:', resource_url)
+        print('Exception:', e)
     return os.path.isfile(resource_name)
 
 
@@ -116,7 +118,7 @@ with open('resources.scss', 'w') as f:
     for resource in RESOURCES:
         if not (populate_resource(resource['name'], resource['url'])):
             f.write("//")
-        f.write("@import \"{}\";\n".format(resource['name']))""" )
+        print('@import "{}";'.format(resource['name']), file=f)""" )
 
 
 
