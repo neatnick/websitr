@@ -197,7 +197,7 @@ Disallow:""" )
 ########################################################################################################################
 
 SCRIPT_DIR     = os.getcwd()
-PROJECT_DIR    = os.path.join(args.path, args.name)
+PROJECT_DIR    = os.path.join(os.path.abspath(args.path), args.name)
 RE_USER_ACCEPT = re.compile(r'y(?:es|up|eah)?$', re.IGNORECASE)
 RE_USER_DENY   = re.compile(r'n(?:o|ope|ada)?$', re.IGNORECASE)
 
@@ -291,9 +291,11 @@ except Exception as exception:
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/resources'))
     populate_template('resources.py', RESOURCES_SASS_TEMPLATE)
-
-    # exec(open("resources.py", 'r').read())
-    subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+    if (os.name == 'nt'):
+        # exec(open("resources.py", 'r').read())
+        subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+    else:
+        subprocess.Popen([sys.executable, 'resources.py'])
 except Exception as exception:
     fatal_exception(exception, "Could not pull in sass resources")
 
