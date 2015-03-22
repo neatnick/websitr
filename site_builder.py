@@ -248,6 +248,7 @@ def populate_template(filename, template, **kargs):
 
 print("Creating folder for new project")
 try:
+    args.path = os.path.abspath(args.path)
     os.chdir(args.path)
 except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
