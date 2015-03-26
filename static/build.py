@@ -25,10 +25,7 @@ or you could just change the regex to not match files with ~ in front of them
 
 import os, sys, tempfile
 import urllib.request
-from string import Template
-import re, shutil
-import argparse
-
+import shutil, argparse
 
 
 ########################################################################################################################
@@ -50,7 +47,38 @@ args = parser.parse_args()
 ##### Templates ########################################################################################################
 ########################################################################################################################
 
-APP_PY_TEMPLATE = Template("""
+from string import Template
+
+class MyTemplate(Template):
+    def populate(self, filename, *args, **kwargs):
+        try:
+            with open(filename, 'w') as f:
+                content = self.sub(args, kwargs) #populate template
+                content = content[1:] #to remove leading newline 
+                f.write(content) #write data to the new file
+        except Exception as exception:
+            raise exception
+
+    def sub(self, *args, **kwargs):
+        for key, value in kwargs:
+            if key.startswith("ph_"):
+                kwargs[key] = self.get_primary_header(value)
+            if key.startswith("sh_"):
+                kwargs[key] = self.get_secondary_header(value)
+        return super(MyTemplate, self).safe_substitute(args, kwargs)
+
+    def get_primary_header(header):
+        header = ('#'*5) + ' ' + header.upper() + ' '
+        header += ('#'*(121-len(header)))
+        return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
+
+    def get_secondary_header(header):
+        header = ('#'*3) + ' ' + header + ' '
+        header += ('#'*(121-len(header)))
+        return header
+
+
+APP_PY_TEMPLATE = MyTemplate("""\
 ${doc_string}
 from bottle import run, route, request   
 from bottle import static_file, template 
@@ -109,14 +137,14 @@ else:
     run(host=args.ip, port=args.port, debug=True, reloader=True) #development """ )
 
 
-MAIN_ROUTE_TEMPLATE = Template("""
+MAIN_ROUTE_TEMPLATE = MyTemplate("""\
 @route('/${path}')
 def ${method_name}():
     return template('${template}')
 """ )
 
 
-STATIC_ROUTE_TEMPLATE = Template("""
+STATIC_ROUTE_TEMPLATE = MyTemplate("""\
 @get('/${path}')
 def ${method_name}():
     return static_file('${file}', root='${root}')
@@ -165,18 +193,6 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
         return routes
     except Exception as e:
         fatal_exception(e)
-
-
-def get_main_header(header):
-    header = ('#'*5) + ' ' + header.upper() + ' '
-    header += ('#'*(121-len(header)))
-    return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
-
-
-def get_secondary_header(header):
-    header = ('#'*3) + ' ' + header + ' '
-    header += ('#'*(121-len(header)))
-    return header
 
 
 

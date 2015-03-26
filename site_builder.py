@@ -10,6 +10,7 @@ Requirements:
     - CoffeeScript
     - Sass
     - Git
+    - Inkscape
 
 Copyright (c) 2015, Nick Balboni.
 License: BSD (see LICENSE for details)
@@ -59,7 +60,43 @@ args = parser.parse_args()
 ##### Templates ########################################################################################################
 ########################################################################################################################
 
-BASE_SASS_TEMPLATE = Template(""""
+# template setup
+MYTEMPLATE = """\
+from string import Template
+
+class MyTemplate(Template):
+    def populate(self, filename, **kwargs):
+        try:
+            with open(filename, 'w') as f:
+                f.write(self.sub(**kwargs))
+        except Exception as exception:
+            raise exception
+
+    def sub(self, **kwargs):
+        for key, value in kwargs.items():
+            if key.startswith("ph_"):
+                kwargs[key] = self.get_primary_header(value)
+            if key.startswith("sh_"):
+                kwargs[key] = self.get_secondary_header(value)
+        return super(MyTemplate, self).safe_substitute(**kwargs)
+
+    def get_primary_header(header):
+        header = ('#'*5) + ' ' + header.upper() + ' '
+        header += ('#'*(121-len(header)))
+        return '\\n\\n' + ('#'*121) + '\\n' + header + "\\n" + ('#'*121)
+
+    def get_secondary_header(header):
+        header = ('#'*3) + ' ' + header + ' '
+        header += ('#'*(121-len(header)))
+        return header"""
+
+with open('templates.py', 'w') as f:
+    f.write(MYTEMPLATE)
+
+
+from templates import MyTemplate
+
+BASE_SASS_TEMPLATE = MyTemplate(""""\
 @import "./resources/resources";
 
 $main-font-stack: 'Lato', sans-serif;
@@ -73,13 +110,13 @@ body.main {
     font-family: $main-font-stack; }""" )
 
 
-STYLES_SASS_TEMPLATE = Template("""
+STYLES_SASS_TEMPLATE = MyTemplate("""\
 @import "base";
 
 """ )
 
 
-WATCH_SASS_TEMPLATE = Template("""
+WATCH_SASS_TEMPLATE = MyTemplate("""\
 from subprocess import call
 
 # watch styles.scss
@@ -87,7 +124,7 @@ from subprocess import call
 call("sass --watch styles.scss:../www/static/css/styles.css", shell=True)""" )
 
 
-RESOURCES_SASS_TEMPLATE = Template("""
+RESOURCES_SASS_TEMPLATE = MyTemplate("""\
 import urllib.request
 import shutil, os
 
@@ -108,9 +145,7 @@ def populate_resource(resource_name, resource_url):
             shutil.copyfileobj(response, f)
     except Exception as e:
         message = "Could not populate resource" if not (os.path.isfile(resource_name)) else "Unable to update resource"
-        print(message, ':', resource_name)
-        print('  from url:', resource_url)
-        print('Exception:', e)
+        print("{}: {}\\n  from url: {}\\nException: {}".format(message, resource_name, resource_url, e))
     return os.path.isfile(resource_name)
 
 
@@ -118,11 +153,11 @@ with open('resources.scss', 'w') as f:
     for resource in RESOURCES:
         if not (populate_resource(resource['name'], resource['url'])):
             f.write("//")
-        print('@import "{}";'.format(resource['name']), file=f)""" )
+        f.write("@import \\"{}\\";\\n".format(resource['name']))""" )
 
 
 
-HEAD_TEMPLATE = Template("""
+HEAD_TEMPLATE = MyTemplate("""\
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -177,7 +212,7 @@ HEAD_TEMPLATE = Template("""
 </head>""" )
 
 
-INDEX_TEMPLATE = Template("""
+INDEX_TEMPLATE = MyTemplate("""\
 <!DOCTYPE html>
 <html lang="en">
 % include('~head.tpl', title='$title', description='$description')
@@ -186,7 +221,7 @@ INDEX_TEMPLATE = Template("""
 </html>""" )
 
 
-ROBOTS_TEMPLATE = Template("""
+ROBOTS_TEMPLATE = MyTemplate("""\
 User-agent: *
 Disallow:""" )
 
@@ -206,9 +241,10 @@ def fatal_exception(exception, message="", cleanup=True):
     print("*******SCRIPT FAILED*******")
     if (message): print(message)
     print("Exception: ", exception)
+    os.chdir(args.path)
+    os.remove("templates.py")
     if (cleanup):
         try:
-            os.chdir(args.path)
             shutil.rmtree(args.name)
         except Exception as e:
             print(e)
@@ -232,16 +268,6 @@ def populate_static_resource(*args):
         except Exception as exception:
             fatal_exception(exception, 
                 "Could not populate resource: {}".format(resource_name))
-
-
-def populate_template(filename, template, **kargs):
-    try:
-        with open(filename, 'w') as f:
-            content = template.safe_substitute(kargs) #populate template
-            content = content[1:] #to remove leading newline 
-            f.write(content) #write data to the new file
-    except Exception as exception:
-        raise exception
 
 
 
@@ -269,6 +295,7 @@ print("Building out directory structure for the project")
 try:
     os.chdir(PROJECT_DIR)
     os.makedirs("dev/coffee")
+    os.makedirs("dev/py")
     os.makedirs("dev/sass/resources")
     os.makedirs("dev/views")
     os.makedirs("res/font")
@@ -282,15 +309,15 @@ except OSError as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
-    populate_template('base.scss', BASE_SASS_TEMPLATE)
-    populate_template('styles.scss', STYLES_SASS_TEMPLATE)
-    populate_template('watch.py', WATCH_SASS_TEMPLATE)
+    BASE_SASS_TEMPLATE.populate('base.scss')
+    STYLES_SASS_TEMPLATE.populate('styles.scss')
+    WATCH_SASS_TEMPLATE.populate('watch.py')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/resources'))
-    populate_template('resources.py', RESOURCES_SASS_TEMPLATE)
+    RESOURCES_SASS_TEMPLATE.populate('resources.py')
     if (os.name == 'nt'):
         # exec(open("resources.py", 'r').read())
         subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
@@ -304,8 +331,10 @@ except Exception as exception:
 print("Creating default views for bottle project")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/views'))
-    populate_template('~head.tpl', HEAD_TEMPLATE, title=args.name, description="Welcome to {}!".format(args.name))
-    populate_template('index.tpl', INDEX_TEMPLATE)
+    HEAD_TEMPLATE.populate('~head.tpl', 
+        title=args.name, 
+        description="Welcome to {}!".format(args.name) )
+    INDEX_TEMPLATE.populate('index.tpl')
 except Exception as exception:
     fatal_exception(exception, "Could not build default views")
 
@@ -357,7 +386,7 @@ except Exception as exception:
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res/static'))
     if not os.path.isfile('robots.txt'): #user may have imported their own robots.txt
-        populate_template('robots.txt', ROBOTS_TEMPLATE)
+        ROBOTS_TEMPLATE.populate('robots.txt')
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
 
@@ -369,3 +398,7 @@ try:
     populate_static_resource('build.py')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
+
+
+os.chdir(args.path)
+os.remove("templates.py")
