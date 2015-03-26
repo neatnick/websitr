@@ -50,27 +50,26 @@ args = parser.parse_args()
 from string import Template
 
 class MyTemplate(Template):
-    def populate(self, filename, *args, **kwargs):
+    def populate(self, filename, **kwargs):
         try:
             with open(filename, 'w') as f:
-                content = self.sub(args, kwargs) #populate template
-                content = content[1:] #to remove leading newline 
-                f.write(content) #write data to the new file
+                f.write(self.sub(**kwargs))
         except Exception as exception:
             raise exception
 
-    def sub(self, *args, **kwargs):
-        for key, value in kwargs:
+    def sub(self, **kwargs):
+        #todo, regex parse for headers/docstring
+        for key, value in kwargs.items():
             if key.startswith("ph_"):
                 kwargs[key] = self.get_primary_header(value)
             if key.startswith("sh_"):
                 kwargs[key] = self.get_secondary_header(value)
-        return super(MyTemplate, self).safe_substitute(args, kwargs)
+        return super(MyTemplate, self).safe_substitute(**kwargs)
 
     def get_primary_header(header):
         header = ('#'*5) + ' ' + header.upper() + ' '
         header += ('#'*(121-len(header)))
-        return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
+        return '\\n\\n' + ('#'*121) + '\\n' + header + "\\n" + ('#'*121)
 
     def get_secondary_header(header):
         header = ('#'*3) + ' ' + header + ' '
@@ -84,7 +83,7 @@ from bottle import run, route, request
 from bottle import static_file, template 
 import argparse                      
 
-${commandline_header}
+${ph_commandline}
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -96,7 +95,7 @@ parser.add_argument('-l', '--local',
     help='Run server for development testing on a local network' ) 
 args = parser.parse_args()                                                                     
 
-${main_routes_header}
+${ph_main_routes}
 
 @route('/')
 def load_index():
@@ -104,19 +103,19 @@ def load_index():
 
 ${main_routes}
 
-${static_routes_header}
+${ph_static_routes}
 ${static_routes}
-${font_routes_header}
+${sh_font_routes}
 @get('/fonts/<filepath:path>')
 def fonts(filename):
     return static_file(filename, root='static/fonts')
 
-${favicon_routes_header}
+${sh_favicon_routes}
 @get('/favicon/<filepath:path>')
 def favicon(filename):
     return static_file(filename, root='static/favicon')
 
-${general_routes_header}
+${sh_general_routes}
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
 def images(filename):
     return static_file(filename, root='static/img')
@@ -129,7 +128,7 @@ def stylesheets(filename):
 def javascript(filename):
     return static_file(filename, root='static/js')
 
-${run_server_header}
+${ph_run_server}
 
 if args.deploy:
     run(host=args.ip, port=args.port, server='cherrypy') #deployment
@@ -228,20 +227,17 @@ try:
     #favicon_routes = get_routes_for_directory("static/favicon")
     os.chdir(os.path.join(args.path, "www"))
     #TODO: api routes
-    with open('app.py', 'w') as f:
-        content = APP_PY_TEMPLATE.safe_substitute(
-            doc_string='"""\ndocstring for {}\n"""'.format(PROJECT_NAME),
-            commandline_header=get_main_header("Command Line Interface"),
-            main_routes_header=get_main_header("Main Site Routes"),
-            main_routes=main_routes_string,
-            static_routes_header=get_main_header("Static Routes"),
-            static_routes=static_routes_string,
-            font_routes_header=get_secondary_header("Font Routes"),
-            favicon_routes_header=get_secondary_header("Favicon Routes"),
-            general_routes_header=get_secondary_header("General Routes"),
-            run_server_header=get_main_header("Run Server") )
-        content = content[1:] #to remove leading newline 
-        f.write(content) #write data to the new file
+    APP_PY_TEMPLATE.populate('app.py', 
+        doc_string='"""\ndocstring for {}\n"""'.format(PROJECT_NAME),
+        ph_commandline="Command Line Interface",
+        ph_main_routes="Main Site Routes",
+        main_routes=main_routes_string,
+        ph_static_routes="Static Routes",
+        static_routes=static_routes_string,
+        sh_font_routes_header="Font Routes",
+        sh_favicon_routes_header="Favicon Routes",
+        sh_general_routes_header="General Routes",
+        ph_run_server_header="Run Server" )
 
     # import bottle into the project
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
