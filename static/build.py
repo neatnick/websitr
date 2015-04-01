@@ -48,8 +48,16 @@ args = parser.parse_args()
 ########################################################################################################################
 
 from string import Template
+import re
 
 class MyTemplate(Template):
+    def __init__(self, template):
+        for match in re.finditer(r'\$ph{(.*?)}', template):
+            template = template.replace(match.group(0), MyTemplate.get_primary_header(match.group(1)))
+        for match in re.finditer(r'\$sh{(.*?)}', template):
+            template = template.replace(match.group(0), MyTemplate.get_secondary_header(match.group(1)))
+        super(MyTemplate, self).__init__(template)
+
     def populate(self, filename, **kwargs):
         try:
             with open(filename, 'w') as f:
@@ -58,32 +66,30 @@ class MyTemplate(Template):
             raise exception
 
     def sub(self, **kwargs):
-        #todo, regex parse for headers/docstring
-        for key, value in kwargs.items():
-            if key.startswith("ph_"):
-                kwargs[key] = self.get_primary_header(value)
-            if key.startswith("sh_"):
-                kwargs[key] = self.get_secondary_header(value)
         return super(MyTemplate, self).safe_substitute(**kwargs)
 
     def get_primary_header(header):
         header = ('#'*5) + ' ' + header.upper() + ' '
         header += ('#'*(121-len(header)))
-        return '\\n\\n' + ('#'*121) + '\\n' + header + "\\n" + ('#'*121)
+        return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
 
     def get_secondary_header(header):
         header = ('#'*3) + ' ' + header + ' '
         header += ('#'*(121-len(header)))
         return header
 
+    
+
 
 APP_PY_TEMPLATE = MyTemplate("""\
+\"""
 ${doc_string}
+\"""
 from bottle import run, route, request   
 from bottle import static_file, template 
 import argparse                      
 
-${ph_commandline}
+$ph{Command Line Interface}
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -95,7 +101,7 @@ parser.add_argument('-l', '--local',
     help='Run server for development testing on a local network' ) 
 args = parser.parse_args()                                                                     
 
-${ph_main_routes}
+$ph{Main Site Routes}
 
 @route('/')
 def load_index():
@@ -103,19 +109,19 @@ def load_index():
 
 ${main_routes}
 
-${ph_static_routes}
+$ph{Static Routes}
 ${static_routes}
-${sh_font_routes}
+$sh{Font Routes}
 @get('/fonts/<filepath:path>')
 def fonts(filename):
     return static_file(filename, root='static/fonts')
 
-${sh_favicon_routes}
+$sh{Favicon Routes}
 @get('/favicon/<filepath:path>')
 def favicon(filename):
     return static_file(filename, root='static/favicon')
 
-${sh_general_routes}
+$sh{General Routes}
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
 def images(filename):
     return static_file(filename, root='static/img')
@@ -128,7 +134,7 @@ def stylesheets(filename):
 def javascript(filename):
     return static_file(filename, root='static/js')
 
-${ph_run_server}
+$ph{Run Server}
 
 if args.deploy:
     run(host=args.ip, port=args.port, server='cherrypy') #deployment
@@ -156,7 +162,6 @@ def ${method_name}():
 
 SCRIPT_DIR      = os.getcwd()
 PROJECT_NAME    = os.path.relpath(SCRIPT_DIR, "..")
-API_KEY         = 'adee4e8e0dc7c5fcc929047cf747f01b44bae8e5'
 
 
 def fatal_exception(exception, message="", cleanup=True):
@@ -223,21 +228,22 @@ try:
 
     img_routes = get_routes_for_directory("res/img", "www/static/img")
     font_routes = get_routes_for_directory("res/font", "www/static/font")
-    #TODO: generate favicon folder with an api call
-    #favicon_routes = get_routes_for_directory("static/favicon")
+    
+    #favicon (inkscape)
+    os.makedirs(os.path.join(args.path, "www/static/favicon"))
+    os.chdir(os.path.join(args.path, "www/static/favicon"))
+    # todo add checking if this exists
+    favicon_tpl = os.path.join(SCRIPT_DIR, "res/favicon.svg")
+    #inkscape --export-png favicon.ico -w 48 -h 48 $favicon_tpl
+
+
+
     os.chdir(os.path.join(args.path, "www"))
     #TODO: api routes
     APP_PY_TEMPLATE.populate('app.py', 
-        doc_string='"""\ndocstring for {}\n"""'.format(PROJECT_NAME),
-        ph_commandline="Command Line Interface",
-        ph_main_routes="Main Site Routes",
+        doc_string="docstring for {}".format(PROJECT_NAME),
         main_routes=main_routes_string,
-        ph_static_routes="Static Routes",
-        static_routes=static_routes_string,
-        sh_font_routes_header="Font Routes",
-        sh_favicon_routes_header="Favicon Routes",
-        sh_general_routes_header="General Routes",
-        ph_run_server_header="Run Server" )
+        static_routes=static_routes_string )
 
     # import bottle into the project
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
