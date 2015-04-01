@@ -46,7 +46,7 @@ parser.add_argument("-f", "--favicon",
     type=str,
     help="location of image file to be used as the favicon for the project. If an absolute path is "
     "not given, location will be assumed to be relative to the location of this script. It is "
-    "recommended to provide a 300px by 300px png file for use here." )
+    "required to provide a square svg file for use here." )
 parser.add_argument("-r", "--resources", 
     type=str,
     nargs='+',
@@ -341,14 +341,16 @@ except Exception as exception:
 
 
 print("Populating project resources")
-try: #TODO: add checking for not png, and to make sure its the right size
+try: # add checking if image doesn't meet requirements
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
     if not args.favicon is None:
         if not os.path.isabs(args.favicon):
             args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
         if os.path.isdir(args.favicon):
-            args.favicon = os.path.join(args.favicon, "favicon.png")
-        shutil.copy(args.favicon, "favicon.png")
+            args.favicon = os.path.join(args.favicon, "favicon.svg")
+        if os.path.splitext(args.favicon)[-1].lower() != '.svg':
+            raise Exception("Given image file does not meet requirements")
+        shutil.copy(args.favicon, "favicon.svg")
 except Exception as exception:
     non_fatal_exception(exception, "Unable to import favicon image. Do you wish to proceed? [yes/no]")
 
