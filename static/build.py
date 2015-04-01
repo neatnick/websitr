@@ -53,9 +53,11 @@ import re
 class MyTemplate(Template):
     def __init__(self, template):
         for match in re.finditer(r'\$ph{(.*?)}', template):
-            template = template.replace(match.group(0), MyTemplate.get_primary_header(match.group(1)))
+            template = template.replace(match.group(0), 
+                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1)))) )
         for match in re.finditer(r'\$sh{(.*?)}', template):
-            template = template.replace(match.group(0), MyTemplate.get_secondary_header(match.group(1)))
+            template = template.replace(match.group(0), 
+                "\n\n{1}\n##### {0} {2}\n{1}".format(match.group(1).upper(), '#'*121, '#'*(121-len(match.group(1))-7)) )
         super(MyTemplate, self).__init__(template)
 
     def populate(self, filename, **kwargs):
@@ -67,17 +69,6 @@ class MyTemplate(Template):
 
     def sub(self, **kwargs):
         return super(MyTemplate, self).safe_substitute(**kwargs)
-
-    def get_primary_header(header):
-        header = ('#'*5) + ' ' + header.upper() + ' '
-        header += ('#'*(121-len(header)))
-        return '\n\n' + ('#'*121) + '\n' + header + "\n" + ('#'*121)
-
-    def get_secondary_header(header):
-        header = ('#'*3) + ' ' + header + ' '
-        header += ('#'*(121-len(header)))
-        return header
-
     
 
 
