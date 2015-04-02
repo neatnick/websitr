@@ -26,6 +26,7 @@ or you could just change the regex to not match files with ~ in front of them
 import os, sys, tempfile
 import urllib.request
 import shutil, argparse
+import subprocess
 
 
 ########################################################################################################################
@@ -225,6 +226,7 @@ try:
     os.chdir(os.path.join(args.path, "www/static/favicon"))
     # todo add checking if this exists
     favicon_tpl = os.path.join(SCRIPT_DIR, "res/favicon.svg")
+    #subprocess.call("inkscape --export-png favicon.ico -w 48 -h 48", shell=True)
     #inkscape --export-png favicon.ico -w 48 -h 48 $favicon_tpl
 
 

@@ -96,7 +96,7 @@ with open('templates.py', 'w') as f:
 
 from templates import MyTemplate
 
-BASE_SASS_TEMPLATE = MyTemplate(""""\
+BASE_SASS_TEMPLATE = MyTemplate("""\
 @import "./resources/resources";
 
 $main-font-stack: 'Lato', sans-serif;
@@ -129,13 +129,13 @@ import urllib.request
 import shutil, os
 
 
-RESOURCES = [ { "name": "flex-box_mixins.scss",
-                "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/flex.scss" },
+RESOURCES = [ { "name": "_flex-box_mixins.scss",
+                "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/_flex.scss" },
 
-              { "name": "media-query_mixins.scss",
+              { "name": "_media-query_mixins.scss",
                 "url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss" },
 
-              { "name": "general_mixins.scss",
+              { "name": "_general_mixins.scss",
                 "url": "https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss" } ]
 
 
@@ -341,7 +341,7 @@ except Exception as exception:
 
 
 print("Populating project resources")
-try: # add checking if image doesn't meet requirements
+try: #TODO: add checking if image doesn't meet requirements
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
     if not args.favicon is None:
         if not os.path.isabs(args.favicon):
