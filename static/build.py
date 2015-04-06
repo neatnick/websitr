@@ -55,10 +55,10 @@ class MyTemplate(Template):
     def __init__(self, template):
         for match in re.finditer(r'\$ph{(.*?)}', template):
             template = template.replace(match.group(0), 
-                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1)))) )
+                "\n\n{1}\n##### {0} {2}\n{1}".format(match.group(1).upper(), '#'*121, '#'*(121-len(match.group(1))-7)) )
         for match in re.finditer(r'\$sh{(.*?)}', template):
             template = template.replace(match.group(0), 
-                "\n\n{1}\n##### {0} {2}\n{1}".format(match.group(1).upper(), '#'*121, '#'*(121-len(match.group(1))-7)) )
+                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1)))) )
         super(MyTemplate, self).__init__(template)
 
     def populate(self, filename, **kwargs):
@@ -101,17 +101,27 @@ def load_index():
 
 ${main_routes}
 
+$ph{API and Additional Site Routes}
+
+${api_routes}
+
 $ph{Static Routes}
+
 ${static_routes}
+
+$sh{Favicon Routes}
+@get('/<filename:re:.*\.ico>')
+def stylesheets(filename):
+    return static_file(filename, root='static/favicon')
+
+@get('/favicon/<filepath:path>')
+def favicon(filename):
+    return static_file(filename, root='static/favicon')
+
 $sh{Font Routes}
 @get('/fonts/<filepath:path>')
 def fonts(filename):
     return static_file(filename, root='static/fonts')
-
-$sh{Favicon Routes}
-@get('/favicon/<filepath:path>')
-def favicon(filename):
-    return static_file(filename, root='static/favicon')
 
 $sh{General Routes}
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
@@ -187,11 +197,13 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
                     if not (filename.startswith('~')):
                         routes.append(os.path.normpath(os.path.join(os.path.relpath(root, src_path), filename)))
         return routes
-    except Exception as e:
-        fatal_exception(e)
+    except Exception as exception:
+        raise exception
 
 
 
+
+print("Creating site directory")
 try:
     args.path = os.path.abspath(args.path)
     os.chdir(args.path)
@@ -199,7 +211,18 @@ except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
 
 try:
-    # generate app.py
+    # cleanup if project already exists
+    # TODO: add ability to use already present resources
+    if os.path.isdir("www"):
+        shutil.rmtree('www')
+except Exception as exception: 
+    # TODO: different exceptions to tell if unable to remove or unable to use
+    fatal_exception(exception, "Unable to clean previous site", False)
+
+
+
+print("Importing resources and generating app.py file")
+try:
     main_routes_string = ""
     for route in get_routes_for_directory("dev/views", "www/views"):
         delimiter = '\\' if os.name == 'nt' else '/'
@@ -218,29 +241,49 @@ try:
             file=route,
             root='static' )
 
-    img_routes = get_routes_for_directory("res/img", "www/static/img")
-    font_routes = get_routes_for_directory("res/font", "www/static/font")
-    
-    #favicon (inkscape)
-    os.makedirs(os.path.join(args.path, "www/static/favicon"))
-    os.chdir(os.path.join(args.path, "www/static/favicon"))
-    # todo add checking if this exists
-    favicon_tpl = os.path.join(SCRIPT_DIR, "res/favicon.svg")
-    #subprocess.call("inkscape --export-png favicon.ico -w 48 -h 48", shell=True)
-    #inkscape --export-png favicon.ico -w 48 -h 48 $favicon_tpl
-
-
+    api_routes_string = ""
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
+    with open('routes.py', 'r') as f:
+        api_routes_string = f.read()
 
     os.chdir(os.path.join(args.path, "www"))
-    #TODO: api routes
     APP_PY_TEMPLATE.populate('app.py', 
         doc_string="docstring for {}".format(PROJECT_NAME),
         main_routes=main_routes_string,
+        api_routes=api_routes_string,
         static_routes=static_routes_string )
+except Exception as e:
+    fatal_exception(e)
 
-    # import bottle into the project
+
+
+print("Importing and generating additional resources")
+try:
+    img_routes = get_routes_for_directory("res/img", "www/static/img")
+    font_routes = get_routes_for_directory("res/font", "www/static/font")
+except Exception as e:
+    fatal_exception(e, "Failed to import image and font resources")
+
+try:
+    os.makedirs(os.path.join(args.path, "www/static/favicon"))
+    os.chdir(os.path.join(args.path, "www/static/favicon"))
+    # TODO: add checking if this exists
+    favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
+    favicons = [ { "name": "favicon.ico",         "size": "48"  }, 
+                 { "name": "favicon-16x16.png",   "size": "16"  },
+                 { "name": "favicon-32x32.png",   "size": "32"  },
+                 { "name": "favicon-96x96.png",   "size": "96"  },
+                 { "name": "favicon-160x160.png", "size": "160" },
+                 { "name": "favicon-196x196.png", "size": "196" } ]
+    for fav in favicons:
+        subprocess.call(["inkscape", "--export-png", fav["name"], "-w", fav["size"], "-h", fav["size"], favicon_tpl])
+    # convert favicon.png -bordercolor white -border 0 ( -clone 0 -resize 64x64 ) ( -clone 0 -resize 48x48 ) ( -clone 0 -resize 32x32 ) ( -clone 0 -resize 16x16 ) -delete 0 -alpha off -colors 256 favicon.ico
+except Exception as e:
+    fatal_exception(e, "Failed to generate favicon resources")
+
+try:
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
     with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
         shutil.copyfileobj(response, f)
 except Exception as e:
-    fatal_exception(e)
+    fatal_exception(e, "Failed to import bottle.py")
