@@ -11,6 +11,7 @@ Requirements:
     - Sass
     - Git
     - Inkscape
+    - Imagemagick
 
 Copyright (c) 2015, Nick Balboni.
 License: BSD (see LICENSE for details)
@@ -130,7 +131,7 @@ import shutil, os
 
 
 RESOURCES = [ { "name": "_flex-box_mixins.scss",
-                "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/_flex.scss" },
+                "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/_flexbox.scss" },
 
               { "name": "_media-query_mixins.scss",
                 "url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss" },
@@ -168,25 +169,7 @@ HEAD_TEMPLATE = MyTemplate("""\
     <meta name="keywords" content="appswithstyle, apps with style, iOS development, developers, awesome things">
     <meta name="description" content="{{description}}">
     <meta name="author" content="Nick Balboni">
-
-<!-- ***** Favicon Stuff ******************************************************************************************* -->
-    <link rel="shortcut icon" href="favicon.ico">
-    <link rel="apple-touch-icon" sizes="57x57" href="/static/favicon/apple-touch-icon-57x57.png?v=2">
-    <link rel="apple-touch-icon" sizes="114x114" href="/static/favicon/apple-touch-icon-114x114.png?v=2">
-    <link rel="apple-touch-icon" sizes="72x72" href="/static/favicon/apple-touch-icon-72x72.png?v=2">
-    <link rel="apple-touch-icon" sizes="144x144" href="/static/favicon/apple-touch-icon-144x144.png?v=2">
-    <link rel="apple-touch-icon" sizes="60x60" href="/static/favicon/apple-touch-icon-60x60.png?v=2">
-    <link rel="apple-touch-icon" sizes="120x120" href="/static/favicon/apple-touch-icon-120x120.png?v=2">
-    <link rel="apple-touch-icon" sizes="76x76" href="/static/favicon/apple-touch-icon-76x76.png?v=2">
-    <link rel="apple-touch-icon" sizes="152x152" href="/static/favicon/apple-touch-icon-152x152.png?v=2">
-    <link rel="icon" type="image/png" href="/static/favicon/favicon-196x196.png?v=2" sizes="196x196">
-    <link rel="icon" type="image/png" href="/static/favicon/favicon-160x160.png?v=2" sizes="160x160">
-    <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png?v=2" sizes="96x96">
-    <link rel="icon" type="image/png" href="/static/favicon/favicon-16x16.png?v=2" sizes="16x16">
-    <link rel="icon" type="image/png" href="/static/favicon/favicon-32x32.png?v=2" sizes="32x32">
-    <meta name="msapplication-TileColor" content="#2d89ef">
-    <meta name="msapplication-TileImage" content="/static/favicon/mstile-144x144.png?v=2">
-    <meta name="msapplication-config" content="/static/favicon/browserconfig.xml">
+    <meta name="favicon_elements">
 
 <!-- ***** Social Media ******************************************************************************************** -->
     <meta property="og:url" content="http://appswithstyle.net/">
@@ -386,7 +369,7 @@ except Exception as exception:
 print("Populating project resources")
 try: #TODO: add checking if image doesn't meet requirements
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
-    if not args.favicon is None:
+    if not args.favicon is None: #TODO: raise warning instead
         if not os.path.isabs(args.favicon):
             args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
         if os.path.isdir(args.favicon):
@@ -399,7 +382,7 @@ except Exception as exception:
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
-    if not args.resources is None:
+    if not args.resources is None: #TODO: raise waring instead
         resources = []
         for resource_path in args.resources:
             if not os.path.isabs(resource_path):

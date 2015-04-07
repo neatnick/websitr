@@ -58,7 +58,10 @@ class MyTemplate(Template):
                 "\n\n{1}\n##### {0} {2}\n{1}".format(match.group(1).upper(), '#'*121, '#'*(121-len(match.group(1))-7)) )
         for match in re.finditer(r'\$sh{(.*?)}', template):
             template = template.replace(match.group(0), 
-                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1)))) )
+                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1))-5)) )
+        for match in re.finditer(r'\$wh{(.*?)}', template):
+            template = template.replace(match.group(0), 
+                "<!-- ***** {} {} -->".format(match.group(1), '*'*(121-len(match.group(1))-16)) )
         super(MyTemplate, self).__init__(template)
 
     def populate(self, filename, **kwargs):
@@ -124,6 +127,10 @@ def fonts(filename):
     return static_file(filename, root='static/fonts')
 
 $sh{General Routes}
+@get('/static/<filepath:path>', method='GET')
+def static(filepath):
+    return static_file(filepath, root='static')
+
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
 def images(filename):
     return static_file(filename, root='static/img')
@@ -176,6 +183,8 @@ def fatal_exception(exception, message="", cleanup=True):
             shutil.rmtree('wwww')
         except Exception as e:
             print(e)
+    import time
+    time.sleep(35)
     sys.exit(1)
 
 
@@ -265,25 +274,52 @@ except Exception as e:
     fatal_exception(e, "Failed to import image and font resources")
 
 try:
+    if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
+        raise Warning("Favicon template not found, skipping favicon resource generation")
+    favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
     os.makedirs(os.path.join(args.path, "www/static/favicon"))
     os.chdir(os.path.join(args.path, "www/static/favicon"))
-    # TODO: add checking if this exists
-    favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
-    favicons = [ { "name": "favicon.ico",         "size": "48"  }, 
-                 { "name": "favicon-16x16.png",   "size": "16"  },
-                 { "name": "favicon-32x32.png",   "size": "32"  },
-                 { "name": "favicon-96x96.png",   "size": "96"  },
-                 { "name": "favicon-160x160.png", "size": "160" },
-                 { "name": "favicon-196x196.png", "size": "196" } ]
-    for fav in favicons:
-        subprocess.call(["inkscape", "--export-png", fav["name"], "-w", fav["size"], "-h", fav["size"], favicon_tpl])
-    # convert favicon.png -bordercolor white -border 0 ( -clone 0 -resize 64x64 ) ( -clone 0 -resize 48x48 ) ( -clone 0 -resize 32x32 ) ( -clone 0 -resize 16x16 ) -delete 0 -alpha off -colors 256 favicon.ico
+    ico_res = [ "16", "24", "32", "48", "64", "128", "256" ]
+    fav_res = [ "16", "32", "96", "160", "196" ]
+    remove = []
+    ico_command = ["convert"]
+    favicon_head_string = "    <link rel=\"shortcut icon\" href=\"favicon.ico\">\n"
+    for res in (ico_res + fav_res):
+        name = "favicon-{0}x{0}.png".format(res)
+        if os.path.isfile(name):
+            continue
+        subprocess.call(["inkscape", "-z", "-e", name, "-w", res, "-h", res, favicon_tpl])
+        if res in ico_res:
+            ico_command.append(name)
+        if not res in fav_res:
+            remove.append(name)
+            continue
+        favicon_head_string = (favicon_head_string +
+            "    <link rel=\"icon\" type=\"image/png\" href=\"/favicon/{0}\" sizes=\"{1}x{1}\">\n".format(name, res) )
+    ico_command.append("favicon.ico")
+    subprocess.call(ico_command, shell=True)
+    for name in remove:
+        os.remove(name)
+    
+    os.chdir(os.path.join(args.path, "www/views"))
+    with open('~head.tpl', 'r') as f:
+        head_string = f.read()
+    head_template = MyTemplate(head_string.replace('<meta name="favicon_elements">', 
+        '\n$wh{Favicon Resources}\n${favicon_elements}'))
+    head_template.populate('~head.tpl', favicon_elements=favicon_head_string[:-1])
+
+except Warning as warning:
+    print(warning)
 except Exception as e:
     fatal_exception(e, "Failed to generate favicon resources")
 
 try:
+    os.chdir(os.path.join(args.path, "www"))
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
     with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
         shutil.copyfileobj(response, f)
 except Exception as e:
     fatal_exception(e, "Failed to import bottle.py")
+
+import time
+time.sleep(5)
