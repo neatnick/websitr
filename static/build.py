@@ -80,7 +80,8 @@ APP_PY_TEMPLATE = MyTemplate("""\
 \"""
 ${doc_string}
 \"""
-from bottle import run, route, request   
+from bottle import run, request   
+from bottle import route, get, post
 from bottle import static_file, template 
 import argparse                      
 
@@ -90,10 +91,16 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )                                
 parser.add_argument('-d', '--deploy',
-    action='store_true' 
+    action='store_true',
     help='Run server for deployment' )       
-parser.add_argument('-l', '--local', 
-    help='Run server for development testing on a local network' ) 
+parser.add_argument('-i', '--ip', 
+    type=str,
+    default="127.0.0.1",
+    help='ip to run the server against, default localhost' ) 
+parser.add_argument('-p', '--port', 
+    type=str,
+    default="8080",
+    help='port to run server on' ) 
 args = parser.parse_args()                                                                     
 
 $ph{Main Site Routes}
@@ -243,7 +250,7 @@ try:
             template=path_array[-1] )
 
     static_routes_string = ""
-    for route in get_routes_for_directory("res/static", "www/static/static"):
+    for route in get_routes_for_directory("res/static", "www/static"):
         static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
             path=route,
             method_name=route.split(".")[0],
@@ -300,7 +307,7 @@ try:
     subprocess.call(ico_command, shell=True)
     for name in remove:
         os.remove(name)
-    
+    # TODO: apple-touch-icon and msapplication
     os.chdir(os.path.join(args.path, "www/views"))
     with open('~head.tpl', 'r') as f:
         head_string = f.read()
@@ -320,6 +327,19 @@ try:
         shutil.copyfileobj(response, f)
 except Exception as e:
     fatal_exception(e, "Failed to import bottle.py")
+
+
+
+print("Running things")
+try:
+    os.chdir(os.path.join(args.path, "www"))
+    if (os.name == 'nt'):
+        subprocess.Popen([sys.executable, 'app.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+    else:
+        subprocess.Popen([sys.executable, 'app.py'])
+except Exception as e:
+    fatal_exception(e, "Could not launch server")
+
 
 import time
 time.sleep(5)
