@@ -29,9 +29,9 @@ import shutil, argparse
 import subprocess
 
 
-########################################################################################################################
-##### Command Line Interface ###########################################################################################
-########################################################################################################################
+#########################################################################################################################
+##### Command Line Interface ############################################################################################
+#########################################################################################################################
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -44,9 +44,9 @@ args = parser.parse_args()
 
 
 
-########################################################################################################################
-##### Templates ########################################################################################################
-########################################################################################################################
+#########################################################################################################################
+##### Templates #########################################################################################################
+#########################################################################################################################
 
 from string import Template
 import re
@@ -172,9 +172,9 @@ def ${method_name}():
 """ )
 
 
-########################################################################################################################
-##### Script Body ######################################################################################################
-########################################################################################################################
+#########################################################################################################################
+##### Script Body #######################################################################################################
+#########################################################################################################################
 
 SCRIPT_DIR      = os.getcwd()
 PROJECT_NAME    = os.path.relpath(SCRIPT_DIR, "..")
@@ -219,13 +219,17 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
 
 
 
-print("Creating site directory")
+print("""> \
+Creating site directory""" )
+
+print("  --  Verifying path") ###########################################################################################
 try:
     args.path = os.path.abspath(args.path)
     os.chdir(args.path)
 except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
 
+print("  --  Searching for already present resources") ##################################################################
 try:
     # cleanup if project already exists
     # TODO: add ability to use already present resources
@@ -237,9 +241,12 @@ except Exception as exception:
 
 
 
-print("Importing resources and generating app.py file")
+print("""> \
+Importing and generating site resources""" )
+
+print("  --  Importing views") ##########################################################################################
+main_routes_string = ""
 try:
-    main_routes_string = ""
     for route in get_routes_for_directory("dev/views", "www/views"):
         delimiter = '\\' if os.name == 'nt' else '/'
         path_array = route.split(delimiter)
@@ -248,38 +255,10 @@ try:
             path='/'.join(path_array), 
             method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
             template=path_array[-1] )
-
-    static_routes_string = ""
-    for route in get_routes_for_directory("res/static", "www/static"):
-        static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=route,
-            method_name=route.split(".")[0],
-            file=route,
-            root='static' )
-
-    api_routes_string = ""
-    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
-    with open('routes.py', 'r') as f:
-        api_routes_string = f.read()
-
-    os.chdir(os.path.join(args.path, "www"))
-    APP_PY_TEMPLATE.populate('app.py', 
-        doc_string="docstring for {}".format(PROJECT_NAME),
-        main_routes=main_routes_string,
-        api_routes=api_routes_string,
-        static_routes=static_routes_string )
 except Exception as e:
     fatal_exception(e)
 
-
-
-print("Importing and generating additional resources")
-try:
-    img_routes = get_routes_for_directory("res/img", "www/static/img")
-    font_routes = get_routes_for_directory("res/font", "www/static/font")
-except Exception as e:
-    fatal_exception(e, "Failed to import image and font resources")
-
+print("  --  Generating favicon resources") #############################################################################
 try:
     if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
         raise Warning("Favicon template not found, skipping favicon resource generation")
@@ -314,12 +293,31 @@ try:
     head_template = MyTemplate(head_string.replace('<meta name="favicon_elements">', 
         '\n$wh{Favicon Resources}\n${favicon_elements}'))
     head_template.populate('~head.tpl', favicon_elements=favicon_head_string[:-1])
-
 except Warning as warning:
     print(warning)
 except Exception as e:
     fatal_exception(e, "Failed to generate favicon resources")
 
+print("  --  Importing image and font resources") #######################################################################
+try:
+    img_routes = get_routes_for_directory("res/img", "www/static/img")
+    font_routes = get_routes_for_directory("res/font", "www/static/font")
+except Exception as e:
+    fatal_exception(e, "Failed to import image and font resources")
+
+print("  --  Importing miscellaneous static resources")
+static_routes_string = ""
+try:
+    for route in get_routes_for_directory("res/static", "www/static"):
+        static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
+            path=route,
+            method_name=route.split(".")[0],
+            file=route,
+            root='static' )
+except Exception as e:
+    fatal_exception(e)
+
+print("  --  Importing bottle framework") ###############################################################################
 try:
     os.chdir(os.path.join(args.path, "www"))
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
@@ -328,9 +326,28 @@ try:
 except Exception as e:
     fatal_exception(e, "Failed to import bottle.py")
 
+print("  --  Generating app.py file") ###################################################################################
+try:
+    api_routes_string = ""
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
+    with open('routes.py', 'r') as f:
+        api_routes_string = f.read()
+
+    os.chdir(os.path.join(args.path, "www"))
+    APP_PY_TEMPLATE.populate('app.py', 
+        doc_string="docstring for {}".format(PROJECT_NAME),
+        main_routes=main_routes_string,
+        api_routes=api_routes_string,
+        static_routes=static_routes_string )
+except Exception as e:
+    fatal_exception(e)
 
 
-print("Running things")
+
+print("""> \
+Executing development scripts""" )
+
+print("  --  Launching server") #########################################################################################
 try:
     os.chdir(os.path.join(args.path, "www"))
     if (os.name == 'nt'):
