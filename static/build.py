@@ -305,7 +305,19 @@ try:
 except Exception as e:
     fatal_exception(e, "Failed to import image and font resources")
 
-print("  --  Importing miscellaneous static resources")
+print("  --  Generating stylesheets") ###################################################################################
+try:
+    pass
+except Exception as e:
+    fatal_exception(e, "Could not generate stylesheets")
+
+print("  --  Generating javascript resources") ##########################################################################
+try:
+    pass
+except Exception as e:
+    fatal_exception(e, "Could not generate javascript files")
+
+print("  --  Importing miscellaneous static resources") #################################################################
 static_routes_string = ""
 try:
     for route in get_routes_for_directory("res/static", "www/static"):
