@@ -81,8 +81,9 @@ APP_PY_TEMPLATE = MyTemplate("""\
 ${doc_string}
 \"""
 from bottle import run, request   
-from bottle import route, get, post
+from bottle import route, get, post, error
 from bottle import static_file, template 
+from bottle import HTTPError
 import argparse                      
 
 $ph{Command Line Interface}
@@ -122,16 +123,18 @@ ${static_routes}
 $sh{Favicon Routes}
 @get('/<filename:re:.*\.ico>')
 def stylesheets(filename):
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filename, root='static/favicon')
 
 @get('/favicon/<filepath:path>')
-def favicon(filename):
-    return static_file(filename, root='static/favicon')
+def favicon(filepath):
+    return static_file(filepath, root='static/favicon')
 
 $sh{Font Routes}
 @get('/fonts/<filepath:path>')
-def fonts(filename):
-    return static_file(filename, root='static/fonts')
+def fonts(filepath):
+    return static_file(filepath, root='static/fonts')
 
 $sh{General Routes}
 @get('/static/<filepath:path>', method='GET')
@@ -140,15 +143,27 @@ def static(filepath):
 
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
 def images(filename):
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filename, root='static/img')
 
 @get('/<filename:re:.*\.css>')
 def stylesheets(filename):
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filename, root='static/css')
 
 @get('/<filename:re:.*\.js>')
 def javascript(filename):
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filename, root='static/js')
+
+$ph{Error Routes}
+
+@error(404)
+def error404(error):
+    return 'nothing to see here'
 
 $ph{Run Server}
 
