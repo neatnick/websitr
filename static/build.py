@@ -351,12 +351,19 @@ try:
     import time
     time.sleep(5) #wait for resources to be retrieved
     with open('_all.scss', 'w') as f:
+        import_array = []
         for root, dirs, files in os.walk(os.getcwd()):
             for file in files:
                 if os.path.relpath(root, os.getcwd()) == '.': break
                 if not file.startswith('~') and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
                     res_path = os.path.join(os.path.relpath(root, os.getcwd()), file).replace('\\', '/')
-                    f.write('@import "{}";\n'.format(res_path) )
+                    import_string = '@import "{}";\n'.format(res_path)
+                    if re.match(r'.*mixins?$', os.path.splitext(file)[0].lower()):
+                        import_array.insert(0, import_string)
+                    else:
+                        import_array.append(import_string)
+        for string in import_array:
+            f.write(string)
     #TODO: add support for page specific stylesheets
     sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css")
     if args.deploy:
