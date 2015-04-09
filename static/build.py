@@ -80,11 +80,10 @@ APP_PY_TEMPLATE = MyTemplate("""\
 \"""
 ${doc_string}
 \"""
-from bottle import run, request   
-from bottle import route, get, post, error
+from bottle import run, route, get, post, error
 from bottle import static_file, template 
 from bottle import HTTPError
-import argparse                      
+import argparse, os
 
 $ph{Command Line Interface}
 
@@ -129,16 +128,25 @@ def stylesheets(filename):
 
 @get('/favicon/<filepath:path>')
 def favicon(filepath):
+    filename = os.path.split(filepath)[-1]
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filepath, root='static/favicon')
 
 $sh{Font Routes}
 @get('/fonts/<filepath:path>')
 def fonts(filepath):
+    filename = os.path.split(filepath)[-1]
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filepath, root='static/fonts')
 
 $sh{General Routes}
 @get('/static/<filepath:path>', method='GET')
 def static(filepath):
+    filename = os.path.split(filepath)[-1]
+    if (filename.startswith('~')):
+        raise HTTPError(404, "File does not exist.")
     return static_file(filepath, root='static')
 
 @get('/<filename:re:.*\.(jpg|png|gif|svg)>')
