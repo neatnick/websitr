@@ -98,8 +98,6 @@ with open('templates.py', 'w') as f:
 from templates import MyTemplate
 
 BASE_SASS_TEMPLATE = MyTemplate("""\
-@import "./resources/resources";
-
 $main-font-stack: 'Lato', sans-serif;
 
 body.main {
@@ -112,7 +110,7 @@ body.main {
 
 
 STYLES_SASS_TEMPLATE = MyTemplate("""\
-@import "base";
+@import "all";
 
 """ )
 
@@ -125,7 +123,7 @@ from subprocess import call
 call("sass --watch styles.scss:../www/static/css/styles.css", shell=True)""" )
 
 
-RESOURCES_SASS_TEMPLATE = MyTemplate("""\
+UPDATE_SASS_TEMPLATE = MyTemplate("""\
 import urllib.request
 import shutil, os
 
@@ -147,14 +145,11 @@ def populate_resource(resource_name, resource_url):
     except Exception as e:
         message = "Could not populate resource" if not (os.path.isfile(resource_name)) else "Unable to update resource"
         print("{}: {}\\n  from url: {}\\nException: {}".format(message, resource_name, resource_url, e))
-    return os.path.isfile(resource_name)
 
 
-with open('resources.scss', 'w') as f:
-    for resource in RESOURCES:
-        if not (populate_resource(resource['name'], resource['url'])):
-            f.write("//")
-        f.write("@import \\"{}\\";\\n".format(resource['name']))""" )
+print("Updating external sass resources")
+for resource in RESOURCES:
+    populate_resource(resource['name'], resource['url'])""" )
 
 
 
@@ -313,7 +308,8 @@ try:
     os.chdir(PROJECT_DIR)
     os.makedirs("dev/coffee")
     os.makedirs("dev/py")
-    os.makedirs("dev/sass/resources")
+    os.makedirs("dev/sass/partials")
+    os.makedirs("dev/sass/vendor")
     os.makedirs("dev/views")
     os.makedirs("res/font")
     os.makedirs("res/img")
@@ -335,22 +331,24 @@ except Exception as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
-    BASE_SASS_TEMPLATE.populate('base.scss')
     STYLES_SASS_TEMPLATE.populate('styles.scss')
-    WATCH_SASS_TEMPLATE.populate('watch.py')
+    os.chdir('partials')
+    BASE_SASS_TEMPLATE.populate('_base.scss')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
-    os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/resources'))
-    RESOURCES_SASS_TEMPLATE.populate('resources.py')
+    os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/vendor'))
+    UPDATE_SASS_TEMPLATE.populate('update.py')
+    #TODO: script doesn't continue until update finishes
+    #wait for update to finish so that sass can properly be compiled when site is built
     if (os.name == 'nt'):
-        # exec(open("resources.py", 'r').read())
-        subprocess.Popen([sys.executable, 'resources.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        # exec(open("update.py", 'r').read())
+        subprocess.Popen([sys.executable, 'update.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:
-        subprocess.Popen([sys.executable, 'resources.py'])
+        subprocess.Popen([sys.executable, 'update.py'])
 except Exception as exception:
-    fatal_exception(exception, "Could not pull in sass resources")
+    fatal_exception(exception, "Could not pull in external sass resources")
 
 
 
@@ -426,7 +424,7 @@ try:
     os.chdir(PROJECT_DIR)
     populate_static_resource('build.py')
     if (os.name == 'nt'):
-        subprocess.Popen([sys.executable, 'build.py', '-p', '.'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen([sys.executable, 'build.py', '-p', '.', '--deploy'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:
         subprocess.Popen([sys.executable, 'build.py', '-p', '.'])
 except Exception as exception:

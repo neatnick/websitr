@@ -2,22 +2,20 @@
 files or directories with a ! in front of them will not be copied into the project
 files or directories with a ~ in front of them will not have a route added for them
 
-TODO: should only explicit resource paths be generated?
-this would allow for the second condition above for image files and fonts and stuff, 
-or you could just change the regex to not match files with ~ in front of them
+if the deploy flag is not given the site will be build as if for local development and testing
 """
 
 # arguments:
 # - path to put the generated site
 # - whether to update non-local site files (i.e. bottle)
-# - whether to start webserver
+# - whether to update static local site files (i.e. img/fonts/misc.)
 #
-# - development flag:
+# - development flag: (set up site for local dev/testing)
 #    + put generated site in tmp
 #    + attempt to update non-local files (non-fatal exception if unable to)
 #    + start webserver with development flag
 #
-# - deployment flag:
+# - deployment flag: (package site for scp to deployment server)
 #    + put generated site in path (required argument for the flag)
 #    + update non-local (?)
 #    + start webserver with deploy flag
@@ -36,11 +34,19 @@ import subprocess
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )
+parser.add_argument("-d", "--deploy",
+    action="store_true",
+    help="package site for movement to deployment server. Default path is the current working "
+    "directory, but the path flag will override that value." )
 parser.add_argument("-p", "--path", 
     type=str,
-    default=tempfile.gettempdir(),
     help="the path to the desired location of the generated site")
 args = parser.parse_args()
+
+if args.path is None:
+    if args.deploy:
+        args.path = os.getcwd()
+    args.path = tempfile.gettempdir()
 
 
 
@@ -145,7 +151,6 @@ $sh{General Routes}
 @get('/static/<filepath:path>', method='GET')
 def static(filepath):
     for item in filepath.split('/'):
-        print(item)
         if (item.startswith('~')):
             raise HTTPError(404, "File does not exist.")
     return static_file(filepath, root='static')
@@ -194,6 +199,16 @@ STATIC_ROUTE_TEMPLATE = MyTemplate("""\
 def ${method_name}():
     return static_file('${file}', root='${root}')
 """ )
+
+
+WATCH_SASS_SCRIPT = MyTemplate("""\
+import subprocess, sys, os
+
+try:
+    call("sass --watch styles.scss:{}/styles.css".format(sys.argv[1]), shell=True)
+except KeyboardInterrupt:
+    os.remove("_resources.py")
+    os.remove(sys.argv[0])""" )
 
 
 #########################################################################################################################
@@ -331,7 +346,21 @@ except Exception as e:
 
 print("  --  Generating stylesheets") ###################################################################################
 try:
-    pass
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
+    #TODO: take this out
+    import time
+    time.sleep(5) #wait for resources to be retrieved
+    with open('_all.scss', 'w') as f:
+        for root, dirs, files in os.walk(os.getcwd()):
+            for file in files:
+                if os.path.relpath(root, os.getcwd()) == '.': break
+                if not file.startswith('~') and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
+                    res_path = os.path.join(os.path.relpath(root, os.getcwd()), file).replace('\\', '/')
+                    f.write('@import "{}";\n'.format(res_path) )
+    #TODO: add support for page specific stylesheets
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css")
+    if args.deploy:
+        subprocess.call("sass styles.scss {}".format(sass_path.replace('\\', '/')), shell=True)
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
@@ -386,13 +415,14 @@ Executing development scripts""" )
 print("  --  Launching server") #########################################################################################
 try:
     os.chdir(os.path.join(args.path, "www"))
-    if (os.name == 'nt'):
-        subprocess.Popen([sys.executable, 'app.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
-    else:
-        subprocess.Popen([sys.executable, 'app.py'])
+    if not args.deploy:
+        if (os.name == 'nt'):
+            subprocess.Popen([sys.executable, 'app.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        else:
+            subprocess.Popen([sys.executable, 'app.py'])
 except Exception as e:
     fatal_exception(e, "Could not launch server")
 
 
 import time
-time.sleep(5)
+time.sleep(25)
