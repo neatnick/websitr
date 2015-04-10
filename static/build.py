@@ -365,7 +365,7 @@ try:
     #TODO: add support for page specific stylesheets
     sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css")
     if args.deploy:
-        subprocess.call("sass styles.scss {}".format(sass_path.replace('\\', '/')), shell=True)
+        subprocess.call("sass styles.scss {}".format(sass_path), shell=True)
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
