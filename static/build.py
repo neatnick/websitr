@@ -356,6 +356,8 @@ try:
     with open('_all.scss', 'w') as f:
         import_array = []
         for root, dirs, files in os.walk(os.getcwd()):
+            # uncomment if you want to pick and choose which partials to include 
+            #if os.path.isdir('partials'): dirs.remove('partials')
             for file in files:
                 directory = os.path.relpath(root, os.getcwd())
                 if directory == '.': break
