@@ -202,12 +202,17 @@ def ${method_name}():
 
 
 WATCH_SASS_SCRIPT = MyTemplate("""\
-import subprocess, sys, os
+import subprocess, sys, os, shutil
 
+p = subprocess.Popen("sass --watch styles.scss:{}".format(sys.argv[1]), shell=True)
 try:
-    call("sass --watch styles.scss:{}/styles.css".format(sys.argv[1]), shell=True)
+    while True:
+        pass
 except KeyboardInterrupt:
-    os.remove("_resources.py")
+    p.kill()
+    os.remove("_all.scss")
+    if os.path.isdir(".sass-cache"):
+        shutil.rmtree(".sass-cache")
     os.remove(sys.argv[0])""" )
 
 
@@ -363,9 +368,18 @@ try:
         for string in import_array:
             f.write(string)
     #TODO: add support for page specific stylesheets
-    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css")
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css").replace('\\', '/')
     if args.deploy:
         subprocess.call("sass styles.scss {}".format(sass_path), shell=True)
+        os.remove("_all.scss")
+        if os.path.isdir(".sass-cache"):
+            shutil.rmtree(".sass-cache")
+    else:
+        WATCH_SASS_SCRIPT.populate('watch.py')
+        if (os.name == 'nt'):
+            subprocess.Popen([sys.executable, 'watch.py', sass_path], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        else:
+            subprocess.Popen([sys.executable, 'watch.py', sass_path])
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
@@ -430,4 +444,4 @@ except Exception as e:
 
 
 import time
-time.sleep(25)
+time.sleep(5)

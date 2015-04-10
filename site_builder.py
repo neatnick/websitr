@@ -292,9 +292,11 @@ try:
     os.makedirs(args.name)
 except OSError as exception:
     if (exception.errno == errno.EEXIST): #TODO: add ability to update an already existing project
-        non_fatal_exception(exception,
-            "Folder already exists at \'{}\' with the desired project name.".format(os.getcwd()) +
-            " Do you wish to proceed (script will use this folder for the project)? [yes/no]", False)
+        shutil.rmtree(args.name)
+        os.makedirs(args.name)
+        #non_fatal_exception(exception,
+        #    "Folder already exists at \'{}\' with the desired project name.".format(os.getcwd()) +
+        #    " Do you wish to proceed (script will use this folder for the project)? [yes/no]", False)
     else:
         fatal_exception(exception, "Could not create project folder", False)
 
@@ -422,7 +424,7 @@ try:
     os.chdir(PROJECT_DIR)
     populate_static_resource('build.py')
     if (os.name == 'nt'):
-        subprocess.Popen([sys.executable, 'build.py', '-p', '.', '--deploy'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen([sys.executable, 'build.py', '-p', '.'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:
         subprocess.Popen([sys.executable, 'build.py', '-p', '.'])
 except Exception as exception:
