@@ -97,9 +97,7 @@ with open('templates.py', 'w') as f:
 
 from templates import MyTemplate
 
-BASE_SASS_TEMPLATE = MyTemplate("""\
-$main-font-stack: 'Lato', sans-serif;
-
+BASE_PARTIAL_SASS_TEMPLATE = MyTemplate("""\
 body.main {
     @include fixpos(0);
     margin: 0;
@@ -109,18 +107,16 @@ body.main {
     font-family: $main-font-stack; }""" )
 
 
-STYLES_SASS_TEMPLATE = MyTemplate("""\
-@import "all";
+BASE_MODULE_SASS_TEMPLATE = MyTemplate("""\
+$main-font-stack: 'Lato', sans-serif;
 
 """ )
 
 
-WATCH_SASS_TEMPLATE = MyTemplate("""\
-from subprocess import call
+STYLES_SASS_TEMPLATE = MyTemplate("""\
+@import "all";
 
-# watch styles.scss
-# - all other sass files flow into this one so this is all we need
-call("sass --watch styles.scss:../www/static/css/styles.css", shell=True)""" )
+""" )
 
 
 UPDATE_SASS_TEMPLATE = MyTemplate("""\
@@ -142,6 +138,7 @@ def populate_resource(resource_name, resource_url):
     try:
         with urllib.request.urlopen(resource_url) as response, open(resource_name, 'wb') as f:
             shutil.copyfileobj(response, f)
+        print("Successfully populated '{}'".format(resource_name))
     except Exception as e:
         message = "Could not populate resource" if not (os.path.isfile(resource_name)) else "Unable to update resource"
         print("{}: {}\\n  from url: {}\\nException: {}".format(message, resource_name, resource_url, e))
@@ -308,6 +305,7 @@ try:
     os.chdir(PROJECT_DIR)
     os.makedirs("dev/coffee")
     os.makedirs("dev/py")
+    os.makedirs("dev/sass/modules")
     os.makedirs("dev/sass/partials")
     os.makedirs("dev/sass/vendor")
     os.makedirs("dev/views")
@@ -333,20 +331,20 @@ try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
     STYLES_SASS_TEMPLATE.populate('styles.scss')
     os.chdir('partials')
-    BASE_SASS_TEMPLATE.populate('_base.scss')
+    BASE_PARTIAL_SASS_TEMPLATE.populate('_base.scss')
+    os.chdir('../modules')
+    BASE_MODULE_SASS_TEMPLATE.populate('_base.scss')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/vendor'))
     UPDATE_SASS_TEMPLATE.populate('update.py')
-    #TODO: script doesn't continue until update finishes
-    #wait for update to finish so that sass can properly be compiled when site is built
     if (os.name == 'nt'):
-        # exec(open("update.py", 'r').read())
-        subprocess.Popen([sys.executable, 'update.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        #wait for update to finish so that sass can properly be compiled when site is built
+        subprocess.call([sys.executable, 'update.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:
-        subprocess.Popen([sys.executable, 'update.py'])
+        subprocess.call([sys.executable, 'update.py'])
 except Exception as exception:
     fatal_exception(exception, "Could not pull in external sass resources")
 

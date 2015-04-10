@@ -347,25 +347,23 @@ except Exception as e:
 print("  --  Generating stylesheets") ###################################################################################
 try:
     os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
-    #TODO: take this out
-    import time
-    time.sleep(5) #wait for resources to be retrieved
+    os.makedirs(os.path.join(args.path, "www/static/css"))
     with open('_all.scss', 'w') as f:
         import_array = []
         for root, dirs, files in os.walk(os.getcwd()):
             for file in files:
-                if os.path.relpath(root, os.getcwd()) == '.': break
+                directory = os.path.relpath(root, os.getcwd())
+                if directory == '.': break
                 if not file.startswith('~') and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
-                    res_path = os.path.join(os.path.relpath(root, os.getcwd()), file).replace('\\', '/')
-                    import_string = '@import "{}";\n'.format(res_path)
-                    if re.match(r'.*mixins?$', os.path.splitext(file)[0].lower()):
-                        import_array.insert(0, import_string)
+                    import_string = '@import "{}";\n'.format(os.path.join(directory, file).replace('\\', '/'))
+                    if re.match(r'.*mixins?$', os.path.splitext(file)[0].lower()) or directory == 'modules':
+                        import_array.insert(0, import_string) #mixins and variables are imported first
                     else:
                         import_array.append(import_string)
         for string in import_array:
             f.write(string)
     #TODO: add support for page specific stylesheets
-    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css")
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css")
     if args.deploy:
         subprocess.call("sass styles.scss {}".format(sass_path.replace('\\', '/')), shell=True)
 except Exception as e:
