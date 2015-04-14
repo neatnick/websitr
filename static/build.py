@@ -286,7 +286,7 @@ except Exception as exception:
 
 
 print("""> \
-Importing and generating site resources""" )
+Importing site resources""" )
 
 print("  --  Importing views") ##########################################################################################
 main_routes_string = ""
@@ -302,7 +302,57 @@ try:
 except Exception as e:
     fatal_exception(e)
 
+print("  --  Importing image and font resources") #######################################################################
+try:
+    img_routes = get_routes_for_directory("res/img", "www/static/img")
+    font_routes = get_routes_for_directory("res/font", "www/static/font")
+except Exception as e:
+    fatal_exception(e, "Failed to import image and font resources")
+
+print("  --  Importing miscellaneous static resources") #################################################################
+static_routes_string = ""
+try:
+    for route in get_routes_for_directory("res/static", "www/static"):
+        static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
+            path=route,
+            method_name=route.split(".")[0],
+            file=route,
+            root='static' )
+except Exception as e:
+    fatal_exception(e)
+
+print("  --  Importing bottle framework") ###############################################################################
+try:
+    os.chdir(os.path.join(args.path, "www"))
+    bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
+    with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
+        shutil.copyfileobj(response, f)
+except Exception as e:
+    fatal_exception(e, "Failed to import bottle.py")
+
+print("  --  Generating app.py file") ###################################################################################
+try:
+    api_routes_string = ""
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
+    with open('routes.py', 'r') as f:
+        api_routes_string = f.read()
+
+    os.chdir(os.path.join(args.path, "www"))
+    APP_PY_TEMPLATE.populate('app.py', 
+        doc_string="docstring for {}".format(PROJECT_NAME),
+        main_routes=main_routes_string,
+        api_routes=api_routes_string,
+        static_routes=static_routes_string )
+except Exception as e:
+    fatal_exception(e)
+
+
+
+print("""> \
+Generating site resources""" )
+
 print("  --  Generating favicon resources") #############################################################################
+favicon_head_string = ""
 try:
     if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
         raise Warning("Favicon template not found, skipping favicon resource generation")
@@ -331,25 +381,50 @@ try:
     for name in remove:
         os.remove(name)
     # TODO: apple-touch-icon and msapplication
-    os.chdir(os.path.join(args.path, "www/views"))
-    with open('~head.tpl', 'r') as f:
-        head_string = f.read()
-    head_template = MyTemplate(head_string.replace('<meta name="favicon_elements">', 
-        '\n$wh{Favicon Resources}\n${favicon_elements}'))
-    head_template.populate('~head.tpl', favicon_elements=favicon_head_string[:-1])
+    favicon_head_string = favicon_head_string[:-1]
 except Warning as warning:
     print(warning)
 except Exception as e:
     fatal_exception(e, "Failed to generate favicon resources")
 
-print("  --  Importing image and font resources") #######################################################################
+print("  --  Generating open graph resources") ##########################################################################
+open_graph_head_string = ""
 try:
-    img_routes = get_routes_for_directory("res/img", "www/static/img")
-    font_routes = get_routes_for_directory("res/font", "www/static/font")
+    open_graph_head_string = """\
+    % url = request.environ['HTTP_POST']
+    <meta property="og:url" content="http://{{url}}/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{title}}">
+    <meta property="open_graph_image">
+    <meta property="og:description" content="{{description}}">
+    """
 except Exception as e:
-    fatal_exception(e, "Failed to import image and font resources")
+    fatal_exception(e)
+
+try:
+    if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
+        raise Warning("Favicon template not found, skipping open graph resource generation")
+    favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
+    favicon_path = os.path.join(args.path, "www/static/favicon")
+    if not os.path.isdir(favicon_path):
+        os.makedirs(favicon_path)
+    os.chdir(favicon_path)
+    subprocess.call(["inkscape", "-z", "-e", "favicon-300x300.png", "-w", "300", "-h", "300", favicon_tpl])
+    open_graph_head_string = open_graph_head_string.replace('<meta property="open_graph_image">',
+        """
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="300">
+    <meta property="og:image:height" content="300">
+    <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
+    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">
+        """)
+except Warning as warning:
+    print(warning)
+except Exception as e:
+    fatal_exception(e, "Failed to generate open graph resources")
 
 print("  --  Generating stylesheets") ###################################################################################
+css_head_string = ""
 try:
     os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
     os.makedirs(os.path.join(args.path, "www/static/css"))
@@ -391,42 +466,26 @@ try:
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
 
-print("  --  Importing miscellaneous static resources") #################################################################
-static_routes_string = ""
+print("  --  Generating head template") #################################################################################
 try:
-    for route in get_routes_for_directory("res/static", "www/static"):
-        static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=route,
-            method_name=route.split(".")[0],
-            file=route,
-            root='static' )
+    os.chdir(os.path.join(args.path, "www/views"))
+    with open('~head.tpl', 'r') as f:
+        head_string = f.read()
+    if favicon_head_string:
+        head_template = MyTemplate(head_string.replace('<meta name="favicon_elements">', 
+            '\n$wh{Favicon Resources}\n${favicon_elements}'))
+    if open_graph_head_string:
+        head_template = MyTemplate(head_string.replace('<meta name="open_graph">', 
+            '\n$wh{Open Graph}\n${open_graph}'))
+    if css_head_string:
+        head_template = MyTemplate(head_string.replace('<meta name="stylesheets">', 
+            '\n$wh{Style Sheets}\n${stylesheets}'))
+    head_template.populate('~head.tpl', 
+        favicon_elements=favicon_head_string,
+        open_graph=open_graph_head_string,
+        stylesheets=css_head_string )
 except Exception as e:
-    fatal_exception(e)
-
-print("  --  Importing bottle framework") ###############################################################################
-try:
-    os.chdir(os.path.join(args.path, "www"))
-    bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
-    with urllib.request.urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
-        shutil.copyfileobj(response, f)
-except Exception as e:
-    fatal_exception(e, "Failed to import bottle.py")
-
-print("  --  Generating app.py file") ###################################################################################
-try:
-    api_routes_string = ""
-    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
-    with open('routes.py', 'r') as f:
-        api_routes_string = f.read()
-
-    os.chdir(os.path.join(args.path, "www"))
-    APP_PY_TEMPLATE.populate('app.py', 
-        doc_string="docstring for {}".format(PROJECT_NAME),
-        main_routes=main_routes_string,
-        api_routes=api_routes_string,
-        static_routes=static_routes_string )
-except Exception as e:
-    fatal_exception(e)
+    fatal_exception(e, "Could not generate head template")
 
 
 

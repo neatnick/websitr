@@ -158,32 +158,14 @@ HEAD_TEMPLATE = MyTemplate("""\
 
     <title>{{title}}</title>
 
-    <meta name="keywords" content="appswithstyle, apps with style, iOS development, developers, awesome things">
     <meta name="description" content="{{description}}">
     <meta name="author" content="Nick Balboni">
     <meta name="favicon_elements">
-
-<!-- ***** Social Media ******************************************************************************************** -->
-    <meta property="og:url" content="http://appswithstyle.net/">
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="appsWithStyle | iOS App Developer Team">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="300">
-    <meta property="og:image:height" content="300">
-    <meta property="og:image" content="http://appswithstyle.net/logo-small_300x300.png">
-    <meta property="og:image:url" content="http://appswithstyle.net/logo-small_300x300.png">
-    <meta property="og:description" content="{{description}}">
-    <!-- Here you go facebook -->
-    <meta property="fb:admins" content="nick.balboni.92">
+    <meta name="open_graph">
+    <meta name="stylesheets">
 
 <!-- ****** jQuery ************************************************************************************************* -->
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-
-<!-- ****** Style Sheets ******************************************************************************************* -->
-    <link href="styles.css" rel="stylesheet" type="text/css">
-    <!-- Fonts -->
-    <link href="http://fonts.googleapis.com/css?family=Lato:300,400,900" rel="stylesheet" type="text/css">
-    <link href="fonts.css" rel="stylesheet" type="text/css">
 </head>""" )
 
 
@@ -380,7 +362,7 @@ except Exception as exception:
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
-    if not args.resources is None: #TODO: raise waring instead
+    if not args.resources is None: #TODO: raise warning instead
         resources = []
         for resource_path in args.resources:
             if not os.path.isabs(resource_path):
