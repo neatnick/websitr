@@ -87,7 +87,7 @@ APP_PY_TEMPLATE = MyTemplate("""\
 ${doc_string}
 \"""
 from bottle import run, route, get, post, error
-from bottle import static_file, template 
+from bottle import static_file, template, request
 from bottle import HTTPError
 import argparse, os
 
@@ -190,7 +190,7 @@ else:
 MAIN_ROUTE_TEMPLATE = MyTemplate("""\
 @route('/${path}')
 def ${method_name}():
-    return template('${template}')
+    return template('${template}', request=request)
 """ )
 
 
@@ -239,7 +239,7 @@ def fatal_exception(exception, message="", cleanup=True):
     sys.exit(1)
 
 
-def get_routes_for_directory(directory, destination): #TODO: do not include directories like .DS_STORE
+def get_routes_for_directory(directory, destination):
     try:
         routes = []
         destination = os.path.join(args.path, destination)
@@ -249,12 +249,12 @@ def get_routes_for_directory(directory, destination): #TODO: do not include dire
         src_path = os.path.join(SCRIPT_DIR, directory)
         for root, dirs, files in os.walk(src_path):
             for dirname in dirs:
-                if (dirname.startswith('!')):
+                if dirname.startswith('!') or dirname in ['.DS_STORE']:
                     dirs.remove(dirname)
             for filename in files:
-                if not (filename.startswith('!')):
+                if not filename.startswith('!'):
                     shutil.copy(os.path.join(root, filename), filename)
-                    if not (filename.startswith('~')):
+                    if not filename.startswith('~'):
                         routes.append(os.path.normpath(os.path.join(os.path.relpath(root, src_path), filename)))
         return routes
     except Exception as exception:
@@ -396,8 +396,7 @@ try:
     <meta property="og:type" content="website">
     <meta property="og:title" content="{{title}}">
     <meta property="open_graph_image">
-    <meta property="og:description" content="{{description}}">
-    """
+    <meta property="og:description" content="{{description}}">"""
 except Exception as e:
     fatal_exception(e)
 
@@ -416,8 +415,7 @@ try:
     <meta property="og:image:width" content="300">
     <meta property="og:image:height" content="300">
     <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
-    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">
-        """)
+    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" )
 except Warning as warning:
     print(warning)
 except Exception as e:
