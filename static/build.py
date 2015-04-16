@@ -94,7 +94,6 @@ from bottle import HTTPError
 import argparse, os
 
 $ph{Command Line Interface}
-
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )                                
@@ -114,7 +113,7 @@ args = parser.parse_args()
 $ph{Main Site Routes}
 @route('/')
 def load_index():
-    return template('index')
+    return template('index', request=request)
 ${main_routes}
 
 $ph{API and Additional Site Routes}${api_routes}
@@ -170,13 +169,11 @@ def javascript(filename):
     return static_file(filename, root='static/js')
 
 $ph{Error Routes}
-
 @error(404)
 def error404(error):
     return 'nothing to see here'
 
 $ph{Run Server}
-
 if args.deploy:
     run(host=args.ip, port=args.port, server='cherrypy') #deployment
 else:
@@ -295,6 +292,7 @@ try:
             path='/'.join(path_array), 
             method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
             template=path_array[-1] )
+        main_routes_string = main_routes_string[:-1]
 except Exception as e:
     fatal_exception(e)
 
@@ -362,9 +360,9 @@ try:
     subprocess.call(["inkscape", "-z", "-e", android_name, "-w", android_res, "-h", res, favicon_tpl])
     favicon_head_string = (favicon_head_string +
         "    <link rel=\"icon\" href=\"/{0}\" sizes=\"{1}x{1}\">\n".format(android_name, android_res) )
-    favicon_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
+    favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
             path=android_name,
-            method_name="touch-icon",
+            method_name="touch_icon",
             file=android_name,
             root='static/favicon' )
     # touch icons for ios
@@ -509,7 +507,7 @@ try:
     api_routes_string = ""
     os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
     with open('routes.py', 'r') as f:
-        api_routes_string = f.read()
+        api_routes_string = "\n" + f.read()
 
     os.chdir(os.path.join(args.path, "www"))
     APP_PY_TEMPLATE.populate('app.py', 
