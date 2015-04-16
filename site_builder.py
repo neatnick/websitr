@@ -406,7 +406,7 @@ try:
     os.chdir(PROJECT_DIR)
     populate_static_resource('build.py')
     if (os.name == 'nt'):
-        subprocess.Popen([sys.executable, 'build.py', '-p', '.'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen([sys.executable, 'build.py', '-d'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:
         subprocess.Popen([sys.executable, 'build.py', '-p', '.'])
 except Exception as exception:

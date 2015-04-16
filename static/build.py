@@ -46,7 +46,8 @@ args = parser.parse_args()
 if args.path is None:
     if args.deploy:
         args.path = os.getcwd()
-    args.path = tempfile.gettempdir()
+    else:
+        args.path = tempfile.gettempdir()
 
 
 
@@ -61,7 +62,8 @@ class MyTemplate(Template):
     def __init__(self, template):
         for match in re.finditer(r'\$ph{(.*?)}', template):
             template = template.replace(match.group(0), 
-                "\n\n{1}\n##### {0} {2}\n{1}".format(match.group(1).upper(), '#'*121, '#'*(121-len(match.group(1))-7)) )
+                "\n\n{1}\n##### {0} {2}\n{1}\n".format(match.group(1).upper(),
+                    '#'*121, '#'*(121-len(match.group(1))-7)) )
         for match in re.finditer(r'\$sh{(.*?)}', template):
             template = template.replace(match.group(0), 
                 "### {} {}".format(match.group(1), '#'*(121-len(match.group(1))-5)) )
@@ -110,22 +112,16 @@ parser.add_argument('-p', '--port',
 args = parser.parse_args()                                                                     
 
 $ph{Main Site Routes}
-
 @route('/')
 def load_index():
     return template('index')
-
 ${main_routes}
 
-$ph{API and Additional Site Routes}
+$ph{API and Additional Site Routes}${api_routes}
 
-${api_routes}
+$ph{Static Routes}${static_routes}
 
-$ph{Static Routes}
-
-${static_routes}
-
-$sh{Favicon Routes}
+$sh{Favicon Routes}${favicon_routes}
 @get('/<filename:re:.*\.ico>')
 def stylesheets(filename):
     if (filename.startswith('~')):
@@ -231,7 +227,7 @@ def fatal_exception(exception, message="", cleanup=True):
     if (cleanup):
         try:
             os.chdir(args.path)
-            shutil.rmtree('wwww')
+            shutil.rmtree('www')
         except Exception as e:
             print(e)
     import time
@@ -286,7 +282,7 @@ except Exception as exception:
 
 
 print("""> \
-Importing site resources""" )
+Importing and generating site resources""" )
 
 print("  --  Importing views") ##########################################################################################
 main_routes_string = ""
@@ -295,7 +291,7 @@ try:
         delimiter = '\\' if os.name == 'nt' else '/'
         path_array = route.split(delimiter)
         path_array[-1] = path_array[-1][:-4]
-        main_routes_string += MAIN_ROUTE_TEMPLATE.safe_substitute(
+        main_routes_string += "\n" + MAIN_ROUTE_TEMPLATE.safe_substitute(
             path='/'.join(path_array), 
             method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
             template=path_array[-1] )
@@ -313,7 +309,7 @@ print("  --  Importing miscellaneous static resources") ########################
 static_routes_string = ""
 try:
     for route in get_routes_for_directory("res/static", "www/static"):
-        static_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
+        static_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
             path=route,
             method_name=route.split(".")[0],
             file=route,
@@ -330,28 +326,8 @@ try:
 except Exception as e:
     fatal_exception(e, "Failed to import bottle.py")
 
-print("  --  Generating app.py file") ###################################################################################
-try:
-    api_routes_string = ""
-    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
-    with open('routes.py', 'r') as f:
-        api_routes_string = f.read()
-
-    os.chdir(os.path.join(args.path, "www"))
-    APP_PY_TEMPLATE.populate('app.py', 
-        doc_string="docstring for {}".format(PROJECT_NAME),
-        main_routes=main_routes_string,
-        api_routes=api_routes_string,
-        static_routes=static_routes_string )
-except Exception as e:
-    fatal_exception(e)
-
-
-
-print("""> \
-Generating site resources""" )
-
 print("  --  Generating favicon resources") #############################################################################
+favicon_routes_string = ""
 favicon_head_string = ""
 try:
     if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
@@ -380,7 +356,50 @@ try:
     subprocess.call(ico_command, shell=True)
     for name in remove:
         os.remove(name)
-    # TODO: apple-touch-icon and msapplication
+    # touch icon for chrome for android
+    android_res = "192"
+    android_name = "touch-icon-{0}x{0}.png".format(android_res)
+    subprocess.call(["inkscape", "-z", "-e", android_name, "-w", android_res, "-h", res, favicon_tpl])
+    favicon_head_string = (favicon_head_string +
+        "    <link rel=\"icon\" href=\"/{0}\" sizes=\"{1}x{1}\">\n".format(android_name, android_res) )
+    favicon_routes_string += STATIC_ROUTE_TEMPLATE.safe_substitute(
+            path=android_name,
+            method_name="touch-icon",
+            file=android_name,
+            root='static/favicon' )
+    # touch icons for ios
+    apple_res = [ "180", "152", "120", "76", "57" ]
+    for res in apple_res:
+        name = "apple-touch-icon-{0}x{0}.png".format(res)
+        precomposed_name = "apple-touch-icon-{0}x{0}-precomposed.png".format(res)
+        subprocess.call(["inkscape", "-z", "-e", name, "-w", res, "-h", res, favicon_tpl])
+        favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
+            path=name,
+            method_name=os.path.splitext(name)[0].replace("-","_"),
+            file=name,
+            root='static/favicon' )
+        favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
+            path=precomposed_name,
+            method_name=os.path.splitext(precomposed_name)[0].replace("-","_"),
+            file=name,
+            root='static/favicon' )
+        if res == "57":
+            favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
+                path="apple-touch-icon.png",
+                method_name="apple_touch_icon",
+                file=name,
+                root='static/favicon' )
+            favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
+                path="apple-touch-icon-precomposed.png",
+                method_name="apple_touch_icon_precomposed",
+                file=name,
+                root='static/favicon' )
+            continue
+        favicon_head_string = (favicon_head_string +
+            "    <link rel=\"apple-touch-icon\" href=\"{0}\" sizes=\"{1}x{1}\">\n".format(name, res) )
+    favicon_head_string = (favicon_head_string +
+        "    <link rel=\"apple-touch-icon\" href=\"apple-touch-icon.png\">\n" )
+    # TODO: msapplication
     favicon_head_string = favicon_head_string[:-1]
 except Warning as warning:
     print(warning)
@@ -470,20 +489,37 @@ try:
     with open('~head.tpl', 'r') as f:
         head_string = f.read()
     if favicon_head_string:
-        head_template = MyTemplate(head_string.replace('<meta name="favicon_elements">', 
-            '\n$wh{Favicon Resources}\n${favicon_elements}'))
+        head_string = head_string.replace('<meta name="favicon_elements">', 
+            '\n$wh{Favicon Resources}\n${favicon_elements}')
     if open_graph_head_string:
-        head_template = MyTemplate(head_string.replace('<meta name="open_graph">', 
-            '\n$wh{Open Graph}\n${open_graph}'))
+        head_string = head_string.replace('<meta name="open_graph">', 
+            '\n$wh{Open Graph}\n${open_graph}')
     if css_head_string:
-        head_template = MyTemplate(head_string.replace('<meta name="stylesheets">', 
-            '\n$wh{Style Sheets}\n${stylesheets}'))
-    head_template.populate('~head.tpl', 
+        head_string = head_string.replace('<meta name="stylesheets">', 
+            '\n$wh{Style Sheets}\n${stylesheets}')
+    MyTemplate(head_string).populate('~head.tpl', 
         favicon_elements=favicon_head_string,
         open_graph=open_graph_head_string,
         stylesheets=css_head_string )
 except Exception as e:
     fatal_exception(e, "Could not generate head template")
+
+print("  --  Generating app.py file") ###################################################################################
+try:
+    api_routes_string = ""
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
+    with open('routes.py', 'r') as f:
+        api_routes_string = f.read()
+
+    os.chdir(os.path.join(args.path, "www"))
+    APP_PY_TEMPLATE.populate('app.py', 
+        doc_string="docstring for {}".format(PROJECT_NAME),
+        main_routes=main_routes_string,
+        api_routes=api_routes_string,
+        favicon_routes=favicon_routes_string,
+        static_routes=static_routes_string )
+except Exception as e:
+    fatal_exception(e)
 
 
 
