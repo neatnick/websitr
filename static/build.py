@@ -408,7 +408,7 @@ print("  --  Generating open graph resources") #################################
 open_graph_head_string = ""
 try:
     open_graph_head_string = """\
-    % url = request.environ['HTTP_POST']
+    % url = request.environ['HTTP_HOST']
     <meta property="og:url" content="http://{{url}}/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="{{title}}">
@@ -427,8 +427,8 @@ try:
     os.chdir(favicon_path)
     subprocess.call(["inkscape", "-z", "-e", "favicon-300x300.png", "-w", "300", "-h", "300", favicon_tpl])
     open_graph_head_string = open_graph_head_string.replace('<meta property="open_graph_image">',
-        """
-    <meta property="og:image:type" content="image/png">
+        """\
+<meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="300">
     <meta property="og:image:height" content="300">
     <meta property="og:image" content="http://{{url}}/favicon-300x300.png">

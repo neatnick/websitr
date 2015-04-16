@@ -337,10 +337,10 @@ except Exception as exception:
 print("Creating default views for bottle project")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/views'))
-    HEAD_TEMPLATE.populate('~head.tpl', 
+    HEAD_TEMPLATE.populate('~head.tpl')
+    INDEX_TEMPLATE.populate('index.tpl', 
         title=args.name, 
         description="Welcome to {}!".format(args.name) )
-    INDEX_TEMPLATE.populate('index.tpl')
 except Exception as exception:
     fatal_exception(exception, "Could not build default views")
 
