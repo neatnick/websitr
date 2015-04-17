@@ -227,8 +227,6 @@ def fatal_exception(exception, message="", cleanup=True):
             shutil.rmtree('www')
         except Exception as e:
             print(e)
-    import time
-    time.sleep(35)
     sys.exit(1)
 
 
@@ -405,18 +403,18 @@ except Exception as e:
     fatal_exception(e, "Failed to generate favicon resources")
 
 print("  --  Generating open graph resources") ##########################################################################
-open_graph_head_string = ""
-try:
-    open_graph_head_string = """\
+og_head_string = """\
     % url = request.environ['HTTP_HOST']
     <meta property="og:url" content="http://{{url}}/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="{{title}}">
     <meta property="open_graph_image">
     <meta property="og:description" content="{{description}}">"""
-except Exception as e:
-    fatal_exception(e)
-
+og_image_string = """<meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="300">
+    <meta property="og:image:height" content="300">
+    <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
+    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" 
 try:
     if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
         raise Warning("Favicon template not found, skipping open graph resource generation")
@@ -426,13 +424,7 @@ try:
         os.makedirs(favicon_path)
     os.chdir(favicon_path)
     subprocess.call(["inkscape", "-z", "-e", "favicon-300x300.png", "-w", "300", "-h", "300", favicon_tpl])
-    open_graph_head_string = open_graph_head_string.replace('<meta property="open_graph_image">',
-        """\
-<meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="300">
-    <meta property="og:image:height" content="300">
-    <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
-    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" )
+    og_head_string = og_head_string.replace('<meta property="open_graph_image">', og_image_string)
 except Warning as warning:
     print(warning)
 except Exception as e:
@@ -460,13 +452,15 @@ try:
         for string in import_array:
             f.write(string)
     #TODO: add support for page specific stylesheets
-    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css").replace('\\', '/')
     if args.deploy:
-        subprocess.call("sass styles.scss {}".format(sass_path), shell=True)
+        subprocess.call("sass styles.scss {} --style compressed".format(
+            os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.min.css").replace('\\', '/')
+        ), shell=True)
         os.remove("_all.scss")
         if os.path.isdir(".sass-cache"):
             shutil.rmtree(".sass-cache")
     else:
+        sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css").replace('\\', '/')
         WATCH_SASS_SCRIPT.populate('watch.py')
         if (os.name == 'nt'):
             subprocess.Popen([sys.executable, 'watch.py', sass_path], creationflags = subprocess.CREATE_NEW_CONSOLE)
@@ -489,7 +483,7 @@ try:
     if favicon_head_string:
         head_string = head_string.replace('<meta name="favicon_elements">', 
             '\n$wh{Favicon Resources}\n${favicon_elements}')
-    if open_graph_head_string:
+    if og_head_string:
         head_string = head_string.replace('<meta name="open_graph">', 
             '\n$wh{Open Graph}\n${open_graph}')
     if css_head_string:
@@ -497,7 +491,7 @@ try:
             '\n$wh{Style Sheets}\n${stylesheets}')
     MyTemplate(head_string).populate('~head.tpl', 
         favicon_elements=favicon_head_string,
-        open_graph=open_graph_head_string,
+        open_graph=og_head_string,
         stylesheets=css_head_string )
 except Exception as e:
     fatal_exception(e, "Could not generate head template")
@@ -534,7 +528,3 @@ try:
             subprocess.Popen([sys.executable, 'app.py'])
 except Exception as e:
     fatal_exception(e, "Could not launch server")
-
-
-import time
-time.sleep(5)
