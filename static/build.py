@@ -197,7 +197,7 @@ def ${method_name}():
 WATCH_SASS_SCRIPT = MyTemplate("""\
 import subprocess, sys, os, shutil
 
-p = subprocess.Popen("sass --watch styles.scss:{}".format(sys.argv[1]), shell=True)
+p = subprocess.Popen("sass --watch {0}.scss:{1}/{0}".format(sys.argv[1], sys.argv[2]), shell=True)
 try:
     while True:
         pass
@@ -306,10 +306,8 @@ static_routes_string = ""
 try:
     for route in get_routes_for_directory("res/static", "www/static"):
         static_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=route,
-            method_name=route.split(".")[0],
-            file=route,
-            root='static' )
+            path=route, method_name=route.split(".")[0],
+            file=route, root='static' )
 except Exception as e:
     fatal_exception(e)
 
@@ -359,10 +357,7 @@ try:
     favicon_head_string = (favicon_head_string +
         "    <link rel=\"icon\" href=\"/{0}\" sizes=\"{1}x{1}\">\n".format(android_name, android_res) )
     favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=android_name,
-            method_name="touch_icon",
-            file=android_name,
-            root='static/favicon' )
+        path=android_name, method_name="touch_icon", file=android_name, root='static/favicon' )
     # touch icons for ios
     apple_res = [ "180", "152", "120", "76", "57" ]
     for res in apple_res:
@@ -370,26 +365,18 @@ try:
         precomposed_name = "apple-touch-icon-{0}x{0}-precomposed.png".format(res)
         subprocess.call(["inkscape", "-z", "-e", name, "-w", res, "-h", res, favicon_tpl])
         favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=name,
-            method_name=os.path.splitext(name)[0].replace("-","_"),
-            file=name,
-            root='static/favicon' )
+            path=name, method_name=os.path.splitext(name)[0].replace("-","_"),
+            file=name, root='static/favicon' )
         favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=precomposed_name,
-            method_name=os.path.splitext(precomposed_name)[0].replace("-","_"),
-            file=name,
-            root='static/favicon' )
+            path=precomposed_name, method_name=os.path.splitext(precomposed_name)[0].replace("-","_"),
+            file=name, root='static/favicon' )
         if res == "57":
             favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-                path="apple-touch-icon.png",
-                method_name="apple_touch_icon",
-                file=name,
-                root='static/favicon' )
+                path="apple-touch-icon.png", method_name="apple_touch_icon",
+                file=name, root='static/favicon' )
             favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-                path="apple-touch-icon-precomposed.png",
-                method_name="apple_touch_icon_precomposed",
-                file=name,
-                root='static/favicon' )
+                path="apple-touch-icon-precomposed.png", method_name="apple_touch_icon_precomposed",
+                file=name, root='static/favicon' )
             continue
         favicon_head_string = (favicon_head_string +
             "    <link rel=\"apple-touch-icon\" href=\"{0}\" sizes=\"{1}x{1}\">\n".format(name, res) )
@@ -435,14 +422,17 @@ css_head_string = ""
 try:
     os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
     os.makedirs(os.path.join(args.path, "www/static/css"))
+    stylesheets = []
     with open('_all.scss', 'w') as f:
         import_array = []
         for root, dirs, files in os.walk(os.getcwd()):
             # uncomment if you want to pick and choose which partials to include 
-            #if os.path.isdir('partials'): dirs.remove('partials')
+            #if 'partials' in dirs: dirs.remove('partials')
             for file in files:
                 directory = os.path.relpath(root, os.getcwd())
-                if directory == '.': break
+                if directory == '.':
+                    stylesheets.append(file)
+                    continue
                 if not file.startswith('~') and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
                     import_string = '@import "{}";\n'.format(os.path.join(directory, file).replace('\\', '/'))
                     if re.match(r'.*mixins?$', os.path.splitext(file)[0].lower()) or directory == 'modules':
@@ -452,20 +442,22 @@ try:
         for string in import_array:
             f.write(string)
     #TODO: add support for page specific stylesheets
+    stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
     if args.deploy:
-        subprocess.call("sass styles.scss {} --style compressed".format(
-            os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.min.css").replace('\\', '/')
-        ), shell=True)
+        for name in stylesheets:
+            subprocess.call("sass {0}.scss {1}/{0}.min.css --style compressed".format(name, sass_path), shell=True)
         os.remove("_all.scss")
         if os.path.isdir(".sass-cache"):
             shutil.rmtree(".sass-cache")
     else:
-        sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css/styles.css").replace('\\', '/')
         WATCH_SASS_SCRIPT.populate('watch.py')
-        if (os.name == 'nt'):
-            subprocess.Popen([sys.executable, 'watch.py', sass_path], creationflags = subprocess.CREATE_NEW_CONSOLE)
-        else:
-            subprocess.Popen([sys.executable, 'watch.py', sass_path])
+        for name in stylesheets:
+            if (os.name == 'nt'):
+                subprocess.Popen([sys.executable, 'watch.py', name, sass_path], 
+                    creationflags = subprocess.CREATE_NEW_CONSOLE )
+            else:
+                subprocess.Popen([sys.executable, 'watch.py', name, sass_path])
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
@@ -513,6 +505,10 @@ try:
 except Exception as e:
     fatal_exception(e)
 
+if args.deploy:
+    print("Script complete")
+    sys.exit(0)
+
 
 
 print("""> \
@@ -521,10 +517,9 @@ Executing development scripts""" )
 print("  --  Launching server") #########################################################################################
 try:
     os.chdir(os.path.join(args.path, "www"))
-    if not args.deploy:
-        if (os.name == 'nt'):
-            subprocess.Popen([sys.executable, 'app.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
-        else:
-            subprocess.Popen([sys.executable, 'app.py'])
+    if (os.name == 'nt'):
+        subprocess.Popen([sys.executable, 'app.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
+    else:
+        subprocess.Popen([sys.executable, 'app.py'])
 except Exception as e:
     fatal_exception(e, "Could not launch server")
