@@ -447,6 +447,7 @@ try:
     if args.deploy:
         for name in stylesheets:
             subprocess.call("sass {0}.scss {1}/{0}.min.css --style compressed".format(name, sass_path), shell=True)
+            css_head_string += "    <link href=\"{}.min.css\" rel=\"stylesheet\" type=\"text/css\">\n".format(name)
         os.remove("_all.scss")
         if os.path.isdir(".sass-cache"):
             shutil.rmtree(".sass-cache")
@@ -458,6 +459,7 @@ try:
                     creationflags = subprocess.CREATE_NEW_CONSOLE )
             else:
                 subprocess.Popen([sys.executable, 'watch.py', name, sass_path])
+            css_head_string += "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n".format(name)
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
