@@ -24,7 +24,7 @@ if the deploy flag is not given the site will be build as if for local developme
 import os, sys, tempfile
 import urllib.request
 import shutil, argparse
-import subprocess
+import subprocess, zipfile
 
 
 #########################################################################################################################
@@ -227,6 +227,8 @@ def fatal_exception(exception, message="", cleanup=True):
             shutil.rmtree('www')
         except Exception as e:
             print(e)
+    import time
+    time.sleep(10)
     sys.exit(1)
 
 
@@ -443,6 +445,7 @@ try:
             f.write(string)
     #TODO: add support for page specific stylesheets
     stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
+    if '_all' in stylesheets: stylesheets.remove('_all')
     sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
     if args.deploy:
         for name in stylesheets:
@@ -464,7 +467,7 @@ except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
 print("  --  Generating javascript resources") ##########################################################################
-try:
+try: #TODO: Implement
     pass
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
@@ -507,14 +510,29 @@ try:
 except Exception as e:
     fatal_exception(e)
 
-if args.deploy:
-    print("Script complete")
-    sys.exit(0)
-
 
 
 print("""> \
 Executing development scripts""" )
+
+if args.deploy:
+    print("  --  Zipping website folder") ###############################################################################
+    try:
+        os.chdir(args.path)
+        with zipfile.ZipFile('www.zip', 'w') as zip_file:
+            for root, dirs, files in os.walk(os.path.join(os.getcwd(), 'www')):
+                rel_path = os.path.relpath(root, os.getcwd())
+                for file in files:
+                    zip_file.write(os.path.join(rel_path, file))
+        with open('unzip.py', 'w') as f:
+            f.write("import os, zipfile\nwith zipfile.ZipFile('www.zip', 'r') as zip_file: zip_file.extractall()")
+        shutil.rmtree('www')
+    except Exception as e:
+        fatal_exception(e, "Could not zip website folder")
+    import time
+    time.sleep(10)
+    print("Script complete")
+    sys.exit(0)
 
 print("  --  Launching server") #########################################################################################
 try:
