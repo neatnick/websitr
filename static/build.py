@@ -453,11 +453,10 @@ try:
     sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
     if args.deploy:
         for name in stylesheets:
-            subprocess.call("sass {0}.scss {1}/{0}.min.css --style compressed".format(name, sass_path), shell=True)
+            subprocess.call(
+                "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
             css_head_string += "    <link href=\"{}.min.css\" rel=\"stylesheet\" type=\"text/css\">\n".format(name)
         os.remove("_all.scss")
-        if os.path.isdir(".sass-cache"):
-            shutil.rmtree(".sass-cache")
     else:
         WATCH_SASS_SCRIPT.populate('watch.py')
         for name in stylesheets:
