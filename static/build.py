@@ -91,7 +91,7 @@ ${doc_string}
 from bottle import run, route, get, post, error
 from bottle import static_file, template, request
 from bottle import HTTPError
-import argparse, os
+import argparse, os, inspect
 
 $ph{Command Line Interface}
 parser = argparse.ArgumentParser(
@@ -111,7 +111,8 @@ parser.add_argument('-p', '--port',
 args = parser.parse_args()
 
 # change working directory to script directory
-os.chdir(os.path.dirname(__file__))                                                                   
+filename = inspect.getframeinfo(inspect.currentframe()).filename
+os.chdir(os.path.dirname(os.path.abspath(filename)))
 
 $ph{Main Site Routes}
 @route('/')
