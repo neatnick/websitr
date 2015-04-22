@@ -108,11 +108,14 @@ parser.add_argument('-p', '--port',
     type=str,
     default="8080",
     help='port to run server on' ) 
-args = parser.parse_args()                                                                     
+args = parser.parse_args()
+
+# change working directory to script directory
+os.chdir(os.path.dirname(__file__))                                                                   
 
 $ph{Main Site Routes}
 @route('/')
-def load_index():
+def load_root():
     return template('index', request=request)
 ${main_routes}
 
@@ -524,8 +527,6 @@ if args.deploy:
                 rel_path = os.path.relpath(root, os.getcwd())
                 for file in files:
                     zip_file.write(os.path.join(rel_path, file))
-        with open('unzip.py', 'w') as f:
-            f.write("import os, zipfile\nwith zipfile.ZipFile('www.zip', 'r') as zip_file: zip_file.extractall()")
         shutil.rmtree('www')
     except Exception as e:
         fatal_exception(e, "Could not zip website folder")
