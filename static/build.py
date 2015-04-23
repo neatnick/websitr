@@ -34,13 +34,17 @@ import subprocess, zipfile
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )
-parser.add_argument("-d", "--deploy",
-    action="store_true",
-    help="package site for movement to deployment server. Default path is the current working "
-    "directory, but the path flag will override that value." )
 parser.add_argument("-p", "--path", 
     type=str,
     help="the path to the desired location of the generated site")
+parser.add_argument("-d", "--deploy",
+    action="store_true",
+    help="package site for movement to deployment server. Default path is the current working "
+    "directory, but the path flag will override that value" )
+parser.add_argument("-r", "--reuse",
+    action="store_true",
+    help="if an already build website exists at the targeted path, attempt to reuse already "
+    "present resources (i.e. images, favicon elements and other static resources)" )
 args = parser.parse_args()
 
 if args.path is None:
@@ -248,7 +252,8 @@ def get_routes_for_directory(directory, destination):
                     dirs.remove(dirname)
             for filename in files:
                 if not filename.startswith('!'):
-                    shutil.copy(os.path.join(root, filename), filename)
+                    if not os.path.isfile(filename): #added for the reuse flag
+                        shutil.copy(os.path.join(root, filename), filename)
                     if not filename.startswith('~'):
                         routes.append(os.path.normpath(os.path.join(os.path.relpath(root, src_path), filename)))
         return routes
@@ -270,12 +275,23 @@ except OSError as exception:
 
 print("  --  Searching for already present resources") ##################################################################
 try:
-    # cleanup if project already exists
-    # TODO: add ability to use already present resources
-    if os.path.isdir("www"):
-        shutil.rmtree('www')
+    if os.path.isdir('www'):
+        if args.reuse:
+            os.chdir('www')
+            if os.path.isfile('app.py'): os.remove('app.py')
+            if os.path.isfile('bottle.py'): os.remove('bottle.py')
+            if os.path.isdir('views'): shutil.rmtree('views')
+            if os.path.isdir('static'): 
+                os.chdir('static')
+                if os.path.isdir('css'): shutil.rmtree('css')
+                if os.path.isdir('js'): shutil.rmtree('js')
+        else:
+            shutil.rmtree('www')
+    elif args.reuse:
+        raise Warning("Reuse flag indicated but no previous site was found at path")
+except Warning as warning:
+    print(warning)
 except Exception as exception: 
-    # TODO: different exceptions to tell if unable to remove or unable to use
     fatal_exception(exception, "Unable to clean previous site", False)
 
 
@@ -328,11 +344,14 @@ print("  --  Generating favicon resources") ####################################
 favicon_routes_string = ""
 favicon_head_string = ""
 try:
-    if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
-        raise Warning("Favicon template not found, skipping favicon resource generation")
+    favicon_res_path = os.path.join(args.path, "www/static/favicon")
     favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
-    os.makedirs(os.path.join(args.path, "www/static/favicon"))
-    os.chdir(os.path.join(args.path, "www/static/favicon"))
+    if args.reuse and os.path.isdir(favicon_res_path):
+        raise Warning("Reuse flag enabled and previous resources were found, skipping favicon generation")
+    if not os.path.isfile(favicon_tpl):
+        raise Warning("Favicon template not found, skipping favicon resource generation")
+    os.makedirs(favicon_res_path)
+    os.chdir(favicon_res_path)
     ico_res = [ "16", "24", "32", "48", "64", "128", "256" ]
     fav_res = [ "16", "32", "96", "160", "196" ]
     remove = []
@@ -407,13 +426,15 @@ og_image_string = """<meta property="og:image:type" content="image/png">
     <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
     <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" 
 try:
-    if not os.path.isfile(os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))):
-        raise Warning("Favicon template not found, skipping open graph resource generation")
     favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
-    favicon_path = os.path.join(args.path, "www/static/favicon")
-    if not os.path.isdir(favicon_path):
-        os.makedirs(favicon_path)
-    os.chdir(favicon_path)
+    favicon_res_path = os.path.join(args.path, "www/static/favicon")
+    if args.reuse and os.path.isdir(favicon_res_path):
+        raise Warning("Reuse flag enabled and previous resources were found, skipping open graph resource generation")
+    if not os.path.isfile(favicon_tpl):
+        raise Warning("Favicon template not found, skipping open graph resource generation")
+    if not os.path.isdir(favicon_res_path):
+        os.makedirs(favicon_res_path)
+    os.chdir(favicon_res_path)
     subprocess.call(["inkscape", "-z", "-e", "favicon-300x300.png", "-w", "300", "-h", "300", favicon_tpl])
     og_head_string = og_head_string.replace('<meta property="open_graph_image">', og_image_string)
 except Warning as warning:
@@ -450,14 +471,13 @@ try:
     stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
     if '_all' in stylesheets: stylesheets.remove('_all')
     if 'styles' in stylesheets: css_head_string += stylesheet_tpl.format('styles.min' if args.deploy else 'styles')
-    first = True
     if args.deploy:
         for name in stylesheets:
             subprocess.call(
                 "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
         os.remove("_all.scss")
     else:
-        WATCH_SASS_SCRIPT.populate('watch.py')
+        WATCH_SASS_SCRIPT.populate('watch.py') # TODO: watch should cascade to stop all watch processes
         for name in stylesheets:
             if (os.name == 'nt'):
                 subprocess.Popen([sys.executable, 'watch.py', name, sass_path], 
