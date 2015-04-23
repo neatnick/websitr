@@ -205,7 +205,12 @@ def ${method_name}():
 WATCH_SASS_SCRIPT = MyTemplate("""\
 import subprocess, sys, os, shutil
 
-p = subprocess.Popen("sass --watch {0}.scss:{1}/{0}.css".format(sys.argv[1], sys.argv[2]), shell=True)
+command = "sass --watch"
+print(sys.argv)
+for x in range(2, len(sys.argv)):
+    command += " {1}.scss:{0}/{1}.css".format(sys.argv[1], sys.argv[x])
+print(command)
+p = subprocess.Popen(command, shell=True)
 try:
     while True:
         pass
@@ -456,7 +461,8 @@ try:
             for file in files:
                 directory = os.path.relpath(root, os.getcwd())
                 if directory == '.':
-                    stylesheets.append(file)
+                    if os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
+                        stylesheets.append(file)
                     continue
                 if not file.startswith('~') and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
                     import_string = '@import "{}";\n'.format(os.path.join(directory, file).replace('\\', '/'))
@@ -477,13 +483,12 @@ try:
                 "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
         os.remove("_all.scss")
     else:
-        WATCH_SASS_SCRIPT.populate('watch.py') # TODO: watch should cascade to stop all watch processes
-        for name in stylesheets:
-            if (os.name == 'nt'):
-                subprocess.Popen([sys.executable, 'watch.py', name, sass_path], 
-                    creationflags = subprocess.CREATE_NEW_CONSOLE )
-            else:
-                subprocess.Popen([sys.executable, 'watch.py', name, sass_path])
+        WATCH_SASS_SCRIPT.populate('watch.py')
+        if (os.name == 'nt'):
+            subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets, 
+                creationflags = subprocess.CREATE_NEW_CONSOLE )
+        else:
+            subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets)
     if 'styles' in stylesheets: stylesheets.remove('styles')
     css_head_string += "    % if template in {}:\n".format(stylesheets)
     css_head_string += stylesheet_tpl.format('{{template}}.min' if args.deploy else '{{template}}')
