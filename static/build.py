@@ -117,7 +117,7 @@ os.chdir(os.path.dirname(os.path.abspath(filename)))
 $ph{Main Site Routes}
 @route('/')
 def load_root():
-    return template('index', request=request)
+    return template('index', request=request, template='index')
 ${main_routes}
 
 $ph{API and Additional Site Routes}${api_routes}
@@ -187,7 +187,7 @@ else:
 MAIN_ROUTE_TEMPLATE = MyTemplate("""\
 @route('/${path}')
 def ${method_name}():
-    return template('${template}', request=request)
+    return template('${template}', request=request, template='${template}')
 """ )
 
 
@@ -201,7 +201,7 @@ def ${method_name}():
 WATCH_SASS_SCRIPT = MyTemplate("""\
 import subprocess, sys, os, shutil
 
-p = subprocess.Popen("sass --watch {0}.scss:{1}/{0}".format(sys.argv[1], sys.argv[2]), shell=True)
+p = subprocess.Popen("sass --watch {0}.scss:{1}/{0}.css".format(sys.argv[1], sys.argv[2]), shell=True)
 try:
     while True:
         pass
@@ -231,8 +231,6 @@ def fatal_exception(exception, message="", cleanup=True):
             shutil.rmtree('www')
         except Exception as e:
             print(e)
-    import time
-    time.sleep(10)
     sys.exit(1)
 
 
@@ -287,7 +285,7 @@ Importing and generating site resources""" )
 
 print("  --  Importing views") ##########################################################################################
 main_routes_string = ""
-try:
+try: # TODO: if dev mod watch this files for changes and update
     for route in get_routes_for_directory("dev/views", "www/views"):
         delimiter = '\\' if os.name == 'nt' else '/'
         path_array = route.split(delimiter)
@@ -447,15 +445,16 @@ try:
                         import_array.append(import_string)
         for string in import_array:
             f.write(string)
-    #TODO: add support for page specific stylesheets
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
+    stylesheet_tpl = "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n"
     stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
     if '_all' in stylesheets: stylesheets.remove('_all')
-    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
+    if 'styles' in stylesheets: css_head_string += stylesheet_tpl.format('styles.min' if args.deploy else 'styles')
+    first = True
     if args.deploy:
         for name in stylesheets:
             subprocess.call(
                 "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
-            css_head_string += "    <link href=\"{}.min.css\" rel=\"stylesheet\" type=\"text/css\">\n".format(name)
         os.remove("_all.scss")
     else:
         WATCH_SASS_SCRIPT.populate('watch.py')
@@ -465,7 +464,10 @@ try:
                     creationflags = subprocess.CREATE_NEW_CONSOLE )
             else:
                 subprocess.Popen([sys.executable, 'watch.py', name, sass_path])
-            css_head_string += "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n".format(name)
+    if 'styles' in stylesheets: stylesheets.remove('styles')
+    css_head_string += "    % if template in {}:\n".format(stylesheets)
+    css_head_string += stylesheet_tpl.format('{{template}}.min' if args.deploy else '{{template}}')
+    css_head_string += "    % end"
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
@@ -489,6 +491,10 @@ try:
     if css_head_string:
         head_string = head_string.replace('<meta name="stylesheets">', 
             '\n$wh{Style Sheets}\n${stylesheets}')
+    # TODO: local jquery fallback
+    google_hosted_tag = '\n    <script src="https://ajax.googleapis.com/ajax/libs/{}"></script>'
+    head_string = head_string.replace('<meta name="jquery">', 
+        '\n$wh{jQuery}' + google_hosted_tag.format('jquery/1.9.1/jquery.min.js'))
     MyTemplate(head_string).populate('~head.tpl', 
         favicon_elements=favicon_head_string,
         open_graph=og_head_string,
@@ -522,6 +528,8 @@ if args.deploy:
     print("  --  Zipping website folder") ###############################################################################
     try:
         os.chdir(args.path)
+        if os.path.isfile('www.zip'):
+            os.remove('www.zip')
         with zipfile.ZipFile('www.zip', 'w') as zip_file:
             for root, dirs, files in os.walk(os.path.join(os.getcwd(), 'www')):
                 rel_path = os.path.relpath(root, os.getcwd())
@@ -530,8 +538,6 @@ if args.deploy:
         shutil.rmtree('www')
     except Exception as e:
         fatal_exception(e, "Could not zip website folder")
-    import time
-    time.sleep(10)
     print("Script complete")
     sys.exit(0)
 
