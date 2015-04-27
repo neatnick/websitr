@@ -206,10 +206,8 @@ WATCH_SASS_SCRIPT = MyTemplate("""\
 import subprocess, sys, os, shutil
 
 command = "sass --watch"
-print(sys.argv)
 for x in range(2, len(sys.argv)):
     command += " {1}.scss:{0}/{1}.css".format(sys.argv[1], sys.argv[x])
-print(command)
 p = subprocess.Popen(command, shell=True)
 try:
     while True:
@@ -498,7 +496,8 @@ except Exception as e:
 
 print("  --  Generating javascript resources") ##########################################################################
 try: #TODO: Implement
-    pass
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/coffee"))
+    os.makedirs(os.path.join(args.path, "www/static/js"))
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
 
@@ -516,10 +515,18 @@ try:
     if css_head_string:
         head_string = head_string.replace('<meta name="stylesheets">', 
             '\n$wh{Style Sheets}\n${stylesheets}')
-    # TODO: local jquery fallback
+    jquery_version = "2.1.3"
+    jquery_file = "jquery-{}.min.js".format(jquery_version)
+    jquery_url = "http://code.jquery.com/{}".format(jquery_file)
+    jquery_path = os.path.join("../static/js", jquery_file)
+    jquery_head = ""
+    with urllib.request.urlopen(jquery_url) as response, open(jquery_path, 'wb') as f:
+        shutil.copyfileobj(response, f)
+        jquery_head = '\n    <script>window.jQuery || document.write(\'<script src="{}"><\\/script>\')</script>'
+        jquery_head = jquery_head.format(jquery_file)
     google_hosted_tag = '\n    <script src="https://ajax.googleapis.com/ajax/libs/{}"></script>'
     head_string = head_string.replace('<meta name="jquery">', 
-        '\n$wh{jQuery}' + google_hosted_tag.format('jquery/1.9.1/jquery.min.js'))
+        '\n$wh{jQuery}' + google_hosted_tag.format('jquery/{}/jquery.min.js'.format(jquery_version)) + jquery_head )
     MyTemplate(head_string).populate('~head.tpl', 
         favicon_elements=favicon_head_string,
         open_graph=og_head_string,
