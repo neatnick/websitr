@@ -2,6 +2,14 @@
 files or directories with a ! in front of them will not be copied into the project
 files or directories with a ~ in front of them will not have a route added for them
 
+styles.scss will be added to all templates and any .scss file with the same name as an existing
+template will be added to that template
+
+use jquery to include js partials, if js file exists with the same name as an existing template
+jquery and that js file will be appended to the body of that template
+
+browsehappy code is added to the top of every template
+
 if the deploy flag is not given the site will be build as if for local development and testing
 """
 
@@ -70,7 +78,7 @@ class MyTemplate(Template):
                     '#'*121, '#'*(121-len(match.group(1))-7)) )
         for match in re.finditer(r'\$sh{(.*?)}', template):
             template = template.replace(match.group(0), 
-                "### {} {}".format(match.group(1), '#'*(121-len(match.group(1))-5)) )
+                "\n### {} {}".format(match.group(1), '#'*(121-len(match.group(1))-5)) )
         for match in re.finditer(r'\$wh{(.*?)}', template):
             template = template.replace(match.group(0), 
                 "<!-- ***** {} {} -->".format(match.group(1), '*'*(121-len(match.group(1))-16)) )
@@ -302,21 +310,6 @@ except Exception as exception:
 print("""> \
 Importing and generating site resources""" )
 
-print("  --  Importing views") ##########################################################################################
-main_routes_string = ""
-try: # TODO: if dev mod watch this files for changes and update
-    for route in get_routes_for_directory("dev/views", "www/views"):
-        delimiter = '\\' if os.name == 'nt' else '/'
-        path_array = route.split(delimiter)
-        path_array[-1] = path_array[-1][:-4]
-        main_routes_string += "\n" + MAIN_ROUTE_TEMPLATE.safe_substitute(
-            path='/'.join(path_array), 
-            method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
-            template=path_array[-1] )
-        main_routes_string = main_routes_string[:-1]
-except Exception as e:
-    fatal_exception(e)
-
 print("  --  Importing image and font resources") #######################################################################
 try:
     img_routes = get_routes_for_directory("res/img", "www/static/img")
@@ -331,6 +324,7 @@ try:
         static_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
             path=route, method_name=route.split(".")[0],
             file=route, root='static' )
+    static_routes_string = static_routes_string[:-1]
 except Exception as e:
     fatal_exception(e)
 
@@ -431,7 +425,7 @@ og_image_string = """<meta property="og:image:type" content="image/png">
 try:
     favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
     favicon_res_path = os.path.join(args.path, "www/static/favicon")
-    if args.reuse and os.path.isdir(favicon_res_path):
+    if args.reuse and os.path.isdir(favicon_res_path): #TODO: head string still needs to be created
         raise Warning("Reuse flag enabled and previous resources were found, skipping open graph resource generation")
     if not os.path.isfile(favicon_tpl):
         raise Warning("Favicon template not found, skipping open graph resource generation")
@@ -498,8 +492,35 @@ print("  --  Generating javascript resources") #################################
 try: #TODO: Implement
     os.chdir(os.path.join(SCRIPT_DIR, "dev/coffee"))
     os.makedirs(os.path.join(args.path, "www/static/js"))
+    jquery_version = "2.1.3"
+    jquery_file = "jquery-{}.min.js".format(jquery_version)
+    jquery_url = "http://code.jquery.com/{}".format(jquery_file)
+    jquery_path = os.path.join(args.path, "www/static/js", jquery_file)
+    jquery_head = ""
+    with urllib.request.urlopen(jquery_url) as response, open(jquery_path, 'wb') as f:
+        shutil.copyfileobj(response, f)
+        jquery_head = '\n    <script>window.jQuery || document.write(\'<script src="{}"><\\/script>\')</script>'
+        jquery_head = jquery_head.format(jquery_file)
+    #google_hosted_tag = '\n    <script src="https://ajax.googleapis.com/ajax/libs/{}"></script>'
+    #head_string = head_string.replace('<meta name="jquery">', 
+    #    '\n$wh{jQuery}' + google_hosted_tag.format('jquery/{}/jquery.min.js'.format(jquery_version)) + jquery_head )
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
+
+print("  --  Importing views") ##########################################################################################
+main_routes_string = ""
+try: # TODO: if dev mode watch this files for changes and update
+    for route in get_routes_for_directory("dev/views", "www/views"):
+        delimiter = '\\' if os.name == 'nt' else '/'
+        path_array = route.split(delimiter)
+        path_array[-1] = path_array[-1][:-4]
+        main_routes_string += "\n" + MAIN_ROUTE_TEMPLATE.safe_substitute(
+            path='/'.join(path_array), 
+            method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
+            template=path_array[-1] )
+    main_routes_string = main_routes_string[:-1]
+except Exception as e:
+    fatal_exception(e)
 
 print("  --  Generating head template") #################################################################################
 try:
@@ -515,18 +536,6 @@ try:
     if css_head_string:
         head_string = head_string.replace('<meta name="stylesheets">', 
             '\n$wh{Style Sheets}\n${stylesheets}')
-    jquery_version = "2.1.3"
-    jquery_file = "jquery-{}.min.js".format(jquery_version)
-    jquery_url = "http://code.jquery.com/{}".format(jquery_file)
-    jquery_path = os.path.join("../static/js", jquery_file)
-    jquery_head = ""
-    with urllib.request.urlopen(jquery_url) as response, open(jquery_path, 'wb') as f:
-        shutil.copyfileobj(response, f)
-        jquery_head = '\n    <script>window.jQuery || document.write(\'<script src="{}"><\\/script>\')</script>'
-        jquery_head = jquery_head.format(jquery_file)
-    google_hosted_tag = '\n    <script src="https://ajax.googleapis.com/ajax/libs/{}"></script>'
-    head_string = head_string.replace('<meta name="jquery">', 
-        '\n$wh{jQuery}' + google_hosted_tag.format('jquery/{}/jquery.min.js'.format(jquery_version)) + jquery_head )
     MyTemplate(head_string).populate('~head.tpl', 
         favicon_elements=favicon_head_string,
         open_graph=og_head_string,

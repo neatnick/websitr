@@ -163,7 +163,6 @@ HEAD_TEMPLATE = MyTemplate("""\
     <meta name="favicon_elements">
     <meta name="open_graph">
     <meta name="stylesheets">
-    <meta name="jquery">
 </head>""" )
 
 
