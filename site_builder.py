@@ -270,7 +270,7 @@ except OSError as exception:
 try:
     os.makedirs(args.name)
 except OSError as exception:
-    if (exception.errno == errno.EEXIST): #TODO: add ability to update an already existing project
+    if (exception.errno == errno.EEXIST): # TODO: add ability to update an already existing project
         shutil.rmtree(args.name)
         os.makedirs(args.name)
         #non_fatal_exception(exception,
@@ -344,9 +344,9 @@ except Exception as exception:
 
 
 print("Populating project resources")
-try: #TODO: add checking if image doesn't meet requirements
+try: # TODO: add checking if image doesn't meet requirements
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
-    if not args.favicon is None: #TODO: raise warning instead
+    if not args.favicon is None: # TODO: raise warning instead
         if not os.path.isabs(args.favicon):
             args.favicon = os.path.join(SCRIPT_DIR, args.favicon)
         if os.path.isdir(args.favicon):
@@ -359,7 +359,7 @@ except Exception as exception:
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
-    if not args.resources is None: #TODO: raise warning instead
+    if not args.resources is None: # TODO: raise warning instead
         resources = []
         for resource_path in args.resources:
             if not os.path.isabs(resource_path):
@@ -370,7 +370,7 @@ try:
                 for root, dirs, files in os.walk(resource_path):
                     for filename in files:
                         resources.append(os.path.join(root, filename))
-        for resource in resources: #TODO: could use some improvement
+        for resource in resources: # TODO: could use some improvement
             name = os.path.split(resource)[-1]
             ext = os.path.splitext(resource)[-1].lower()
             if ext == '.svg':
@@ -401,7 +401,7 @@ except Exception as exception:
 print("Generating website in temporary directory")
 try:
     os.chdir(PROJECT_DIR)
-    populate_static_resource('build.py')
+    populate_static_resource('build.py') # TODO: add build.py as a template
     if (os.name == 'nt'):
         subprocess.Popen([sys.executable, 'build.py', '-d'], creationflags = subprocess.CREATE_NEW_CONSOLE)
     else:

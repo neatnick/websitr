@@ -61,6 +61,11 @@ if args.path is None:
     else:
         args.path = tempfile.gettempdir()
 
+# TODO: move jQuery version, whether or not to include jQuery, whether to autoadd all sass partials and other variables
+# up here, eventually make them into arguments for the script? (maybe store in a config file instead)
+# (actually why waste the space? this file should be customizable on a per project basis, 
+#    like the sass update.py file is <- make note of this in docs)
+
 
 
 #########################################################################################################################
@@ -311,7 +316,7 @@ print("""> \
 Importing and generating site resources""" )
 
 print("  --  Importing image and font resources") #######################################################################
-try:
+try: # TODO: note fact that all image files and font resources have to have unique names
     img_routes = get_routes_for_directory("res/img", "www/static/img")
     font_routes = get_routes_for_directory("res/font", "www/static/font")
 except Exception as e:
@@ -343,7 +348,7 @@ favicon_head_string = ""
 try:
     favicon_res_path = os.path.join(args.path, "www/static/favicon")
     favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
-    if args.reuse and os.path.isdir(favicon_res_path):
+    if args.reuse and os.path.isdir(favicon_res_path): # TODO: head string and routes still need to be created
         raise Warning("Reuse flag enabled and previous resources were found, skipping favicon generation")
     if not os.path.isfile(favicon_tpl):
         raise Warning("Favicon template not found, skipping favicon resource generation")
@@ -422,10 +427,10 @@ og_image_string = """<meta property="og:image:type" content="image/png">
     <meta property="og:image:height" content="300">
     <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
     <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" 
-try:
+try: # TODO: route needs to be created
     favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
     favicon_res_path = os.path.join(args.path, "www/static/favicon")
-    if args.reuse and os.path.isdir(favicon_res_path): #TODO: head string still needs to be created
+    if args.reuse and os.path.isdir(favicon_res_path): # TODO: head string and route still need to be created
         raise Warning("Reuse flag enabled and previous resources were found, skipping open graph resource generation")
     if not os.path.isfile(favicon_tpl):
         raise Warning("Favicon template not found, skipping open graph resource generation")
@@ -474,7 +479,7 @@ try:
             subprocess.call(
                 "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
         os.remove("_all.scss")
-    else:
+    else: # TODO: if dev mode add sass maps to routes
         WATCH_SASS_SCRIPT.populate('watch.py')
         if (os.name == 'nt'):
             subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets, 
@@ -489,7 +494,7 @@ except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
 print("  --  Generating javascript resources") ##########################################################################
-try: #TODO: Implement
+try: # TODO: Implement
     os.chdir(os.path.join(SCRIPT_DIR, "dev/coffee"))
     os.makedirs(os.path.join(args.path, "www/static/js"))
     jquery_version = "2.1.3"
@@ -504,6 +509,8 @@ try: #TODO: Implement
     #google_hosted_tag = '\n    <script src="https://ajax.googleapis.com/ajax/libs/{}"></script>'
     #head_string = head_string.replace('<meta name="jquery">', 
     #    '\n$wh{jQuery}' + google_hosted_tag.format('jquery/{}/jquery.min.js'.format(jquery_version)) + jquery_head )
+    
+    # TODO: add google analytics beneath js
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
 
@@ -519,6 +526,7 @@ try: # TODO: if dev mode watch this files for changes and update
             method_name="load_{}".format(path_array[-1].split(".")[0].replace("-","_")), 
             template=path_array[-1] )
     main_routes_string = main_routes_string[:-1]
+    # TODO: add browsehappy to the top of every template with regex replace
 except Exception as e:
     fatal_exception(e)
 
