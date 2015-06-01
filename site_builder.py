@@ -121,18 +121,20 @@ STYLES_SASS_TEMPLATE = MyTemplate("""\
 
 UPDATE_SASS_TEMPLATE = MyTemplate("""\
 import urllib.request
-import shutil, os
+import shutil
+import os
 
 
-RESOURCES = [ { "name": "_flex-box_mixins.scss",
-                "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/_flexbox.scss" },
+RESOURCES = (
+[ { "name": "_flex-box_mixins.scss",
+    "url": "https://raw.githubusercontent.com/mastastealth/sass-flex-mixin/master/_flexbox.scss" },
 
-              { "name": "_media-query_mixins.scss",
-                "url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss" },
+  { "name": "_media-query_mixins.scss",
+    "url": "https://raw.githubusercontent.com/paranoida/sass-mediaqueries/master/_media-queries.scss" },
 
-              { "name": "_general_mixins.scss",
-                "url": "https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss" } ]
-
+  { "name": "_general_mixins.scss",
+    "url": "https://raw.githubusercontent.com/SwankSwashbucklers/some-sassy-mixins/master/mixins.scss" } ]
+)
 
 def populate_resource(resource_name, resource_url):
     try:
