@@ -35,9 +35,9 @@ import shutil, argparse
 import subprocess, zipfile
 
 
-#########################################################################################################################
-##### Command Line Interface ############################################################################################
-#########################################################################################################################
+################################################################################
+##### Command Line Interface ###################################################
+################################################################################
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -68,40 +68,74 @@ if args.path is None:
 
 
 
-#########################################################################################################################
-##### Templates #########################################################################################################
-#########################################################################################################################
+################################################################################
+##### Templates ################################################################
+################################################################################
 
 from string import Template
-import re
+from re import compile
 
-class MyTemplate(Template):
-    def __init__(self, template):
-        for match in re.finditer(r'\$ph{(.*?)}', template):
-            template = template.replace(match.group(0), 
-                "\n\n{1}\n##### {0} {2}\n{1}\n".format(match.group(1).upper(),
-                    '#'*121, '#'*(121-len(match.group(1))-7)) )
-        for match in re.finditer(r'\$sh{(.*?)}', template):
-            template = template.replace(match.group(0), 
-                "\n### {} {}".format(match.group(1), '#'*(121-len(match.group(1))-5)) )
-        for match in re.finditer(r'\$wh{(.*?)}', template):
-            template = template.replace(match.group(0), 
-                "<!-- ***** {} {} -->".format(match.group(1), '*'*(121-len(match.group(1))-16)) )
-        super(MyTemplate, self).__init__(template)
+class TemplateWrapper():
 
-    def populate(self, filename, **kwargs):
+    def __init__(self, cls):
+        PYTHON_LL = 80
+        HTML_LL   = 120
+
+        self.cls = cls
+        self.headers = [
+            # Primary python file header template
+            ( 
+                compile(r'\$ph{(.*?)}'),
+                lambda x: "\n\n{1}\n##### {0} {2}\n{1}\n".format(
+                    x.upper(), '#'*PYTHON_LL, '#'*(PYTHON_LL-len(x)-7) )
+            ),
+
+            # Secondary python file header template
+            ( 
+                compile(r'\$sh{(.*?)}'),
+                lambda x: "\n### {0} {1}".format(
+                    x, '#'*(PYTHON_LL-len(x)-5) )
+            ),
+
+            # HTML file header template
+            ( 
+                compile(r'\$wh{(.*?)}'),
+                lambda x: "<!-- ***** {0} {1} -->".format(
+                    x, '*'*(HTML_LL-len(x)-16) )
+            )
+        ]
+        
+    def __call__(self, template):
+        for header in self.headers:
+            ptn, tpl = header
+            for match in ptn.finditer(template):
+                replacements = ( match.group(0), tpl(match.group(1)) )
+                template = template.replace(*replacements)
+        template_obj = self.cls(template)
+        template_obj.populate = self.populate
+        return template_obj
+
+
+    @staticmethod
+    def populate(template, filename, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, list):
+                kwargs[key] = "\n".join(
+                    [ t[0].safe_substitute(**t[1]) for t in value ]
+                )
+            elif isinstance(value, str):
+                pass
         try:
             with open(filename, 'w') as f:
-                f.write(self.sub(**kwargs))
+                f.write(template.safe_substitute(**kwargs))
         except Exception as exception:
             raise exception
 
-    def sub(self, **kwargs):
-        return super(MyTemplate, self).safe_substitute(**kwargs)
+Template = TemplateWrapper(Template)
     
 
 
-APP_PY_TEMPLATE = MyTemplate("""\
+APP_PY_TEMPLATE = Template("""\
 \"""
 ${doc_string}
 \"""
@@ -201,21 +235,21 @@ else:
     run(host=args.ip, port=args.port, debug=True, reloader=True) #development """ )
 
 
-MAIN_ROUTE_TEMPLATE = MyTemplate("""\
+MAIN_ROUTE_TEMPLATE = Template("""\
 @route('/${path}')
 def ${method_name}():
     return template('${template}', request=request, template='${template}')
 """ )
 
 
-STATIC_ROUTE_TEMPLATE = MyTemplate("""\
+STATIC_ROUTE_TEMPLATE = Template("""\
 @get('/${path}')
 def ${method_name}():
     return static_file('${file}', root='${root}')
 """ )
 
 
-WATCH_SASS_SCRIPT = MyTemplate("""\
+WATCH_SASS_SCRIPT = Template("""\
 import subprocess, sys, os, shutil
 
 command = "sass --watch"
@@ -233,9 +267,9 @@ except KeyboardInterrupt:
     os.remove(sys.argv[0])""" )
 
 
-#########################################################################################################################
-##### Script Body #######################################################################################################
-#########################################################################################################################
+################################################################################
+##### Script Body ##############################################################
+################################################################################
 
 SCRIPT_DIR      = os.getcwd()
 PROJECT_NAME    = os.path.relpath(SCRIPT_DIR, "..")
@@ -277,19 +311,17 @@ def get_routes_for_directory(directory, destination):
         raise exception
 
 
-
-
 print("""> \
 Creating site directory""" )
 
-print("  --  Verifying path") ###########################################################################################
+print("  --  Verifying path") ##################################################
 try:
     args.path = os.path.abspath(args.path)
     os.chdir(args.path)
 except OSError as exception:
     fatal_exception(exception, "Invalid path provided", False)
 
-print("  --  Searching for already present resources") ##################################################################
+print("  --  Searching for already present resources") #########################
 try:
     if os.path.isdir('www'):
         if args.reuse:
@@ -315,14 +347,14 @@ except Exception as exception:
 print("""> \
 Importing and generating site resources""" )
 
-print("  --  Importing image and font resources") #######################################################################
+print("  --  Importing image and font resources") ##############################
 try: # TODO: note fact that all image files and font resources have to have unique names
     img_routes = get_routes_for_directory("res/img", "www/static/img")
     font_routes = get_routes_for_directory("res/font", "www/static/font")
 except Exception as e:
     fatal_exception(e, "Failed to import image and font resources")
 
-print("  --  Importing miscellaneous static resources") #################################################################
+print("  --  Importing miscellaneous static resources") ########################
 static_routes_string = ""
 try:
     for route in get_routes_for_directory("res/static", "www/static"):
@@ -333,7 +365,7 @@ try:
 except Exception as e:
     fatal_exception(e)
 
-print("  --  Importing bottle framework") ###############################################################################
+print("  --  Importing bottle framework") ######################################
 try:
     os.chdir(os.path.join(args.path, "www"))
     bottle_url = "https://raw.githubusercontent.com/bottlepy/bottle/master/bottle.py"
@@ -342,7 +374,7 @@ try:
 except Exception as e:
     fatal_exception(e, "Failed to import bottle.py")
 
-print("  --  Generating favicon resources") #############################################################################
+print("  --  Generating favicon resources") ####################################
 favicon_routes_string = ""
 favicon_head_string = ""
 try:
@@ -414,7 +446,7 @@ except Warning as warning:
 except Exception as e:
     fatal_exception(e, "Failed to generate favicon resources")
 
-print("  --  Generating open graph resources") ##########################################################################
+print("  --  Generating open graph resources") #################################
 og_head_string = """\
     % url = request.environ['HTTP_HOST']
     <meta property="og:url" content="http://{{url}}/">
@@ -444,7 +476,7 @@ except Warning as warning:
 except Exception as e:
     fatal_exception(e, "Failed to generate open graph resources")
 
-print("  --  Generating stylesheets") ###################################################################################
+print("  --  Generating stylesheets") ##########################################
 css_head_string = ""
 try:
     os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
@@ -493,7 +525,7 @@ try:
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")
 
-print("  --  Generating javascript resources") ##########################################################################
+print("  --  Generating javascript resources") #################################
 try: # TODO: Implement
     os.chdir(os.path.join(SCRIPT_DIR, "dev/coffee"))
     os.makedirs(os.path.join(args.path, "www/static/js"))
@@ -514,7 +546,7 @@ try: # TODO: Implement
 except Exception as e:
     fatal_exception(e, "Could not generate javascript files")
 
-print("  --  Importing views") ##########################################################################################
+print("  --  Importing views") #################################################
 main_routes_string = ""
 try: # TODO: if dev mode watch this files for changes and update
     for route in get_routes_for_directory("dev/views", "www/views"):
@@ -530,7 +562,7 @@ try: # TODO: if dev mode watch this files for changes and update
 except Exception as e:
     fatal_exception(e)
 
-print("  --  Generating head template") #################################################################################
+print("  --  Generating head template") ########################################
 try:
     os.chdir(os.path.join(args.path, "www/views"))
     with open('~head.tpl', 'r') as f:
@@ -551,7 +583,7 @@ try:
 except Exception as e:
     fatal_exception(e, "Could not generate head template")
 
-print("  --  Generating app.py file") ###################################################################################
+print("  --  Generating app.py file") ##########################################
 try:
     api_routes_string = ""
     os.chdir(os.path.join(SCRIPT_DIR, "dev/py"))
@@ -574,7 +606,7 @@ print("""> \
 Executing development scripts""" )
 
 if args.deploy:
-    print("  --  Zipping website folder") ###############################################################################
+    print("  --  Zipping website folder") ######################################
     try:
         os.chdir(args.path)
         if os.path.isfile('www.zip'):
