@@ -252,8 +252,7 @@ def migrate_views():
 
 
 def get_api_routes(): # TODO: multiple file support here?
-    file = join(SCRIPT_DIR, "dev/py", "routes.py")
-    with open(file, 'r') as f:
+    with open( join(SCRIPT_DIR, "dev/py", "routes.py"), 'r') as f: 
         return f.read()
 
 
@@ -298,6 +297,11 @@ def generate_favicon_resources():
 
 
 
+def generate_stylesheets():
+    pass
+
+
+
 rmtree('www')
 
 
@@ -328,3 +332,59 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
 
 exit(0)
 # note, everything needs a unique name using this method
+
+
+print("  --  Generating stylesheets") ##########################################
+css_head_string = ""
+try:
+    os.chdir(os.path.join(SCRIPT_DIR, "dev/sass"))
+    os.makedirs(os.path.join(args.path, "www/static/css"))
+    stylesheets = []
+    with open('_all.scss', 'w') as f:
+        import_array = []
+        for root, dirs, files in os.walk(os.getcwd()):
+            # uncomment if you want to pick and choose which 
+            # partials to include 
+            #if 'partials' in dirs: dirs.remove('partials')
+            for file in files:
+                directory = os.path.relpath(root, os.getcwd())
+                if directory == '.':
+                    if os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
+                        stylesheets.append(file)
+                    continue
+                if not file.startswith('~') \
+                and os.path.splitext(file)[-1].lower() in ['.scss', '.sass']:
+                    import_string = '@import "{}";\n'.format(
+                        os.path.join(directory, file).replace('\\', '/'))
+                    if re.match(r'.*mixins?$', 
+                        os.path.splitext(file)[0].lower()) \
+                    or directory == 'modules':
+                        import_array.insert(0, import_string) 
+                        #mixins and variables are imported first
+                    else:
+                        import_array.append(import_string)
+        for string in import_array:
+            f.write(string)
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
+    stylesheet_tpl = "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n"
+    stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
+    if '_all' in stylesheets: stylesheets.remove('_all')
+    if 'styles' in stylesheets: css_head_string += stylesheet_tpl.format('styles.min' if args.deploy else 'styles')
+    if args.deploy:
+        for name in stylesheets:
+            subprocess.call(
+                "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
+        os.remove("_all.scss")
+    else: # TODO: if dev mode add sass maps to routes
+        WATCH_SASS_SCRIPT.populate('watch.py')
+        if (os.name == 'nt'):
+            subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets, 
+                creationflags = subprocess.CREATE_NEW_CONSOLE )
+        else:
+            subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets)
+    if 'styles' in stylesheets: stylesheets.remove('styles')
+    css_head_string += "    % if template in {}:\n".format(stylesheets)
+    css_head_string += stylesheet_tpl.format('{{template}}.min' if args.deploy else '{{template}}')
+    css_head_string += "    % end"
+except Exception as e:
+    fatal_exception(e, "Could not generate stylesheets")
