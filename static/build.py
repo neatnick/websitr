@@ -250,12 +250,15 @@ def ${method_name}():
 
 
 WATCH_SASS_SCRIPT = Template("""\
-import subprocess, sys, os, shutil
+import os
+import sys
+from subprocess import Popen 
+from shutil import rmtree
 
 command = "sass --watch"
 for x in range(2, len(sys.argv)):
     command += " {1}.scss:{0}/{1}.css".format(sys.argv[1], sys.argv[x])
-p = subprocess.Popen(command, shell=True)
+p = Popen(command, shell=True)
 try:
     while True:
         pass
@@ -263,7 +266,7 @@ except KeyboardInterrupt:
     p.kill()
     os.remove("_all.scss")
     if os.path.isdir(".sass-cache"):
-        shutil.rmtree(".sass-cache")
+        rmtree(".sass-cache")
     os.remove(sys.argv[0])""" )
 
 

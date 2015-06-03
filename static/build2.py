@@ -227,28 +227,19 @@ def fatal_exception(exception, message="", cleanup=True):
 
 
 def migrate_files(directory, destination):
-    try:
-        routes = []
-        destination = join(args.path, destination)
-        if not isdir(destination): os.makedirs(destination)
-        src_path = join(SCRIPT_DIR, directory)
-        for root, dirs, files in os.walk(src_path):
-            for dirname in dirs:
-                if dirname.startswith('!') or dirname in ['.DS_STORE']:
-                    dirs.remove(dirname)
-            for filename in files:
-                if not filename.startswith('!'):
-                    if not isfile(filename): #added for the reuse flag
-                        copy(join(root, filename), join(destination, filename))
-                    if not filename.startswith('~'):
-                        routes.append(
-                            normpath(
-                                join(relpath(root, src_path), filename)
-                            ).replace('\\', '/')
-                        )
-        return routes
-    except Exception as exception:
-        raise exception
+    src_path = join(SCRIPT_DIR, directory)
+    if not isdir(destination): os.makedirs(destination)
+    for root, dirs, files in os.walk(src_path):
+        for dirname in dirs:
+            if dirname.startswith('!') or dirname in ['.DS_STORE']:
+                dirs.remove(dirname)
+        for filename in files:
+            if not filename.startswith('!'):
+                if not isfile(filename): #added for the reuse flag
+                    copy(join(root, filename), join(destination, filename))
+                if not filename.startswith('~'):
+                    yield normpath(join(relpath(root, src_path), 
+                                        filename) ).replace('\\', '/')
 
 
 def migrate_views():
@@ -257,7 +248,7 @@ def migrate_views():
                 splitext(r)[0],
                 "load_" + splitext(r.split("/")[-1])[0].replace("-","_"),
                 splitext(r.split("/")[-1])[0] 
-            ) for r in migrate_files("dev/views", "www/views") ])
+            ) for r in migrate_files("dev/views", "views") ])
 
 
 def get_api_routes(): # TODO: multiple file support here?
@@ -272,15 +263,17 @@ def migrate_static_files(source, destination):
 
 
 def generate_favicon_resources():
-    fav_path    = lambda p: normpath(join(args.path, "www/static/favicon", p))
+    fav_path    = lambda p: normpath(join("static/favicon", p))
     favicon_tpl = normpath(join(SCRIPT_DIR, "res/favicon.svg"))
     fav_tpl     = "favicon-{0}x{0}.png"
     and_tpl     = "touch-icon-{0}x{0}.png"
     app_tpl     = "apple-touch-icon-{0}x{0}.png"
+    pra_tpl     = "apple-touch-icon-{0}x{0}-precomposed.png"
     ico_res     = [ "16", "24", "32", "48", "64", "128", "256" ]
     fav_res     = [ "16", "32", "96", "160", "196", "300" ]
     android_res = [ "192" ]
     apple_res   = [ "57", "76", "120", "152", "180" ] # add to head backwards
+    if not isdir("static/favicon"): os.makedirs("static/favicon")
     for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
         # TODO: add exception checking
         if res in android_res: name = and_tpl.format(res)
@@ -292,10 +285,16 @@ def generate_favicon_resources():
     call( ["convert"] + [fav_path(fav_tpl.format(r)) for r in ico_res] + 
           [fav_path("favicon.ico")], shell=True )
     for res in [ r for r in ico_res if r not in fav_res ]:
-        os.remove(fav_path(fav_tpl.format(r)))
+        os.remove(fav_path(fav_tpl.format(res)))
     
-    return ""
-
+    favicon_route = lambda f:  STATIC_ROUTE(f, f, "static/favicon")
+    apple_route   = lambda p,t:STATIC_ROUTE(p, t.format("57"), "static/favicon")
+    return ([ favicon_route(fav_tpl.format(r)) for r in fav_res ] +
+            [ favicon_route(and_tpl.format(r)) for r in android_res ] +
+            [ favicon_route(app_tpl.format(r)) for r in apple_res if r!="57" ] +
+            [ favicon_route(pra_tpl.format(r)) for r in apple_res if r!="57" ] +
+            [ apple_route("apple-touch-icon.png", app_tpl),
+              apple_route("apple-touch-icon-precomposed.png", pra_tpl) ] )
 
 
 
@@ -304,7 +303,7 @@ rmtree('www')
 
 os.chdir(args.path)
 os.makedirs("www")
-os.chdir("www")
+os.chdir("www") # all operations will happen relative to www
 #os.chdir(join(args.path, "www"))
 
 # import bottle framework
@@ -320,7 +319,7 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
     main_routes=migrate_views(),
     api_routes=get_api_routes(),
     static_routes=migrate_static_files("res/static", "static"),
-    favicon_routes="",
+    favicon_routes=generate_favicon_resources(),
     image_routes=migrate_static_files("res/img", "static/img"),
     font_routes=migrate_static_files("res/font", "static/font"),
     css_routes="",
@@ -329,75 +328,3 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
 
 exit(0)
 # note, everything needs a unique name using this method
-
-print("  --  Generating favicon resources") ####################################
-favicon_routes_string = ""
-favicon_head_string = ""
-try:
-    favicon_res_path = os.path.join(args.path, "www/static/favicon")
-    favicon_tpl = os.path.join(SCRIPT_DIR, os.path.normpath("res/favicon.svg"))
-    if args.reuse and os.path.isdir(favicon_res_path): # TODO: head string and routes still need to be created
-        raise Warning("Reuse flag enabled and previous resources were found, skipping favicon generation")
-    if not os.path.isfile(favicon_tpl):
-        raise Warning("Favicon template not found, skipping favicon resource generation")
-    os.makedirs(favicon_res_path)
-    os.chdir(favicon_res_path)
-    ico_res = [ "16", "24", "32", "48", "64", "128", "256" ]
-    fav_res = [ "16", "32", "96", "160", "196" ]
-    remove = []
-    ico_command = ["convert"]
-    favicon_head_string = "    <link rel=\"shortcut icon\" href=\"favicon.ico\">\n"
-    for res in (ico_res + fav_res):
-        name = "favicon-{0}x{0}.png".format(res)
-        if os.path.isfile(name):
-            continue
-        subprocess.call(["inkscape", "-z", "-e", name, "-w", res, "-h", res, favicon_tpl])
-        if res in ico_res:
-            ico_command.append(name)
-        if not res in fav_res:
-            remove.append(name)
-            continue
-        favicon_head_string = (favicon_head_string +
-            "    <link rel=\"icon\" type=\"image/png\" href=\"/favicon/{0}\" sizes=\"{1}x{1}\">\n".format(name, res) )
-    ico_command.append("favicon.ico")
-    subprocess.call(ico_command, shell=True)
-    for name in remove:
-        os.remove(name)
-    # touch icon for chrome for android
-    android_res = "192"
-    android_name = "touch-icon-{0}x{0}.png".format(android_res)
-    subprocess.call(["inkscape", "-z", "-e", android_name, "-w", android_res, "-h", res, favicon_tpl])
-    favicon_head_string = (favicon_head_string +
-        "    <link rel=\"icon\" href=\"/{0}\" sizes=\"{1}x{1}\">\n".format(android_name, android_res) )
-    favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-        path=android_name, method_name="touch_icon", file=android_name, root='static/favicon' )
-    # touch icons for ios
-    apple_res = [ "180", "152", "120", "76", "57" ]
-    for res in apple_res:
-        name = "apple-touch-icon-{0}x{0}.png".format(res)
-        precomposed_name = "apple-touch-icon-{0}x{0}-precomposed.png".format(res)
-        subprocess.call(["inkscape", "-z", "-e", name, "-w", res, "-h", res, favicon_tpl])
-        favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=name, method_name=os.path.splitext(name)[0].replace("-","_"),
-            file=name, root='static/favicon' )
-        favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-            path=precomposed_name, method_name=os.path.splitext(precomposed_name)[0].replace("-","_"),
-            file=name, root='static/favicon' )
-        if res == "57":
-            favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-                path="apple-touch-icon.png", method_name="apple_touch_icon",
-                file=name, root='static/favicon' )
-            favicon_routes_string += "\n" + STATIC_ROUTE_TEMPLATE.safe_substitute(
-                path="apple-touch-icon-precomposed.png", method_name="apple_touch_icon_precomposed",
-                file=name, root='static/favicon' )
-            continue
-        favicon_head_string = (favicon_head_string +
-            "    <link rel=\"apple-touch-icon\" href=\"{0}\" sizes=\"{1}x{1}\">\n".format(name, res) )
-    favicon_head_string = (favicon_head_string +
-        "    <link rel=\"apple-touch-icon\" href=\"apple-touch-icon.png\">\n" )
-    # TODO: msapplication
-    favicon_head_string = favicon_head_string[:-1]
-except Warning as warning:
-    print(warning)
-except Exception as e:
-    fatal_exception(e, "Failed to generate favicon resources")
