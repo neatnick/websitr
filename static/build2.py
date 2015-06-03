@@ -252,27 +252,12 @@ def migrate_files(directory, destination):
 
 
 def migrate_views():
-    return ([
-                (
-                    MAIN_ROUTE_TEMPLATE, 
-                    {
-                        "path": "", 
-                        "method_name": "load_root", 
-                        "template": "index"
-                    }
-                ) 
-            ] + [
-                (
-                    MAIN_ROUTE_TEMPLATE, 
-                    {
-                        "path": splitext(r)[0], 
-                        "method_name": "load_{}".format(
-                            splitext(r.split("/")[-1])[0].replace("-","_") ),
-                        "template": splitext(r.split("/")[-1])[0]
-                    }
-                ) 
-                for r in migrate_files("dev/views", "www/views") 
-            ])
+    return ([ MAIN_ROUTE("", "load_root", "index") ] + 
+            [ MAIN_ROUTE(
+                splitext(r)[0],
+                "load_" + splitext(r.split("/")[-1])[0].replace("-","_"),
+                splitext(r.split("/")[-1])[0] 
+            ) for r in migrate_files("dev/views", "www/views") ])
 
 
 def get_api_routes(): # TODO: multiple file support here?
@@ -280,19 +265,6 @@ def get_api_routes(): # TODO: multiple file support here?
     with open(file, 'r') as f:
         return f.read()
 
-
-#def migrate_static_files(source, destination):
-#    return [
-#                (
-#                    STATIC_ROUTE_TEMPLATE, 
-#                    {
-#                        "path": r,
-#                        "file": r.split("/")[-1],
-#                        "root": destination
-#                    }
-#                ) 
-#                for r in migrate_files(source, destination) 
-#            ]
 
 def migrate_static_files(source, destination):
     return [ STATIC_ROUTE(r, r.split("/")[-1], destination)
