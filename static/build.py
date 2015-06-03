@@ -311,6 +311,24 @@ def get_routes_for_directory(directory, destination):
         raise exception
 
 
+
+def migrate_static_files():
+    static_routes = []
+    for route in get_routes_for_directory("res/static", "www/static"):
+        static_routes.append(
+            (
+                STATIC_ROUTE_TEMPLATE, 
+                {
+                    "path": route, 
+                    "method_name": route.split(".")[0],
+                    "file": route,
+                    "root": 'static'
+                }
+            )
+        )
+    return static_routes
+
+
 print("""> \
 Creating site directory""" )
 
