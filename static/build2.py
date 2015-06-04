@@ -262,12 +262,12 @@ def migrate_static_files(source, destination):
 
 
 def generate_favicon_resources():
+    fav_tpl     = lambda r: "favicon-{0}x{0}.png".format(r)
+    and_tpl     = lambda r: "touch-icon-{0}x{0}.png".format(r)
+    app_tpl     = lambda r: "apple-touch-icon-{0}x{0}.png".format(r)
+    pra_tpl     = lambda r: "apple-touch-icon-{0}x{0}-precomposed.png".format(r)
     fav_path    = lambda p: normpath(join("static/favicon", p))
     favicon_tpl = normpath(join(SCRIPT_DIR, "res/favicon.svg"))
-    fav_tpl     = "favicon-{0}x{0}.png"
-    and_tpl     = "touch-icon-{0}x{0}.png"
-    app_tpl     = "apple-touch-icon-{0}x{0}.png"
-    pra_tpl     = "apple-touch-icon-{0}x{0}-precomposed.png"
     ico_res     = [ "16", "24", "32", "48", "64", "128", "256" ]
     fav_res     = [ "16", "32", "96", "160", "196", "300" ]
     android_res = [ "192" ]
@@ -275,32 +275,51 @@ def generate_favicon_resources():
     if not isdir("static/favicon"): os.makedirs("static/favicon")
     for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
         # TODO: add exception checking
-        if res in android_res: name = and_tpl.format(res)
-        elif res in apple_res: name = app_tpl.format(res)
-        else:                  name = fav_tpl.format(res)
+        if res in android_res: name = and_tpl(res)
+        elif res in apple_res: name = app_tpl(res)
+        else:                  name = fav_tpl(res)
         # TODO: this wont work if there are android and ios duplicates
         call( [ "inkscape", "-z", "-e", fav_path(name), "-w", res, "-h", res, 
               favicon_tpl], shell=True )
-    call( ["convert"] + [fav_path(fav_tpl.format(r)) for r in ico_res] + 
+        print([ "inkscape", "-z", "-e", fav_path(name), "-w", res, "-h", res, 
+              favicon_tpl])
+    call( ["convert"] + [fav_path(fav_tpl(r)) for r in ico_res] + 
           [fav_path("favicon.ico")], shell=True )
     for res in [ r for r in ico_res if r not in fav_res ]:
-        os.remove(fav_path(fav_tpl.format(res)))
+        os.remove(fav_path(fav_tpl(res)))
     
-    favicon_route = lambda f:  STATIC_ROUTE(f, f, "static/favicon")
-    apple_route   = lambda p,t:STATIC_ROUTE(p, t.format("57"), "static/favicon")
-    return ([ favicon_route(fav_tpl.format(r)) for r in fav_res ] +
-            [ favicon_route(and_tpl.format(r)) for r in android_res ] +
-            [ favicon_route(app_tpl.format(r)) for r in apple_res if r!="57" ] +
-            [ favicon_route(pra_tpl.format(r)) for r in apple_res if r!="57" ] +
-            [ apple_route("apple-touch-icon.png", app_tpl),
-              apple_route("apple-touch-icon-precomposed.png", pra_tpl) ] )
+    fav_route = lambda f:   STATIC_ROUTE(f, f, "static/favicon")
+    app_route = lambda p,t: STATIC_ROUTE(p, t("57"), "static/favicon")
+    return ([ fav_route(fav_tpl(r)) for r in fav_res ] +
+            [ fav_route(and_tpl(r)) for r in android_res ] +
+            [ fav_route(app_tpl(r)) for r in apple_res if r!="57" ] +
+            [ fav_route(pra_tpl(r)) for r in apple_res if r!="57" ] +
+            [ app_route("apple-touch-icon.png", app_tpl),
+              app_route("apple-touch-icon-precomposed.png", pra_tpl) ])
 
 
 
-def generate_stylesheets():
-    pass
+def generate_stylesheets(): # dont use a general solution
+    def get_imports(path):
+        for root, dirs, files in os.walk(path):
+            # uncomment to manually choose which partials to include 
+            #if 'partials' in dirs: dirs.remove('partials')
+            for file in files:
+                if not file.startswith('~') \
+                and splitext(f)[-1].lower() in ['.scss', '.sass']:
+                    yield join(relpath(root, path), file).replace('\\', '/')
 
+    with open('_all.scss', 'w') as f:
+        imports = list(get_imports(os.getcwd()))
+        for item in imports: # move all mixins to the top
+            if re.match(r'.*mixins?$', splitext(item.split('/')[-1])[0]):
+                dirs.insert(0, dirs.pop(dirs.index(item)))
+        f.write('\n'.join(imports))
 
+       #     if 'modules' in dirs: # modules folder must be imported first
+       #         dirs.insert(0, dirs.pop(dirs.index('modules')))
+       # is_sass    = lambda f: splitext(f)[-1].lower() in ['.scss', '.sass']
+       # get_import = lambda p: '@import "{}";'.format(p.replace('\\', '/'))
 
 rmtree('www')
 

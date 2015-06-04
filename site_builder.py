@@ -149,7 +149,7 @@ RESOURCES = (
 
 def populate_resource(resource_name, resource_url):
     try:
-        with urlopen(resource_url) as response, \\ 
+        with urlopen(resource_url) as response, \\
                 open(resource_name, 'wb') as f:
             copyfileobj(response, f)
         print("Successfully populated '{}'".format(resource_name))
