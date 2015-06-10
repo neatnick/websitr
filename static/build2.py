@@ -342,8 +342,15 @@ def generate_stylesheets():
     #    else:
     #        subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets)
 
+    # can i do this?
+    # def kPopen(arg): # can i even just name this Popen to override?
+    #     if os.name == 'nt':
+    #         Popen(arg, creationflags=CREATE_NEW_CONSOLE)
+    #     else:
+    #         Popen(args)
+
     # return css routes from generated stylesheets
-    return ""
+    return "" # look through the css directory and return what you find
 
 
 
