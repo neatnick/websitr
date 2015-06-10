@@ -106,9 +106,13 @@ ${doc_string}
 from bottle import run, route, get, post, error
 from bottle import static_file, template, request
 from bottle import HTTPError
-import argparse, os, inspect
 
 $ph{Command Line Interface}
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from inspect import getframeinfo, currentframe
+from os.path import dirname, abspath
+import os
+
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=__doc__ )                                
@@ -126,8 +130,7 @@ parser.add_argument('-p', '--port',
 args = parser.parse_args()
 
 # change working directory to script directory
-filename = inspect.getframeinfo(inspect.currentframe()).filename
-os.chdir(os.path.dirname(os.path.abspath(filename)))
+os.chdir(dirname(abspath(getframeinfo(currentframe()).filename)))
 
 $ph{Main Site Routes}
 ${main_routes}
@@ -204,6 +207,7 @@ from os.path import relpath, normpath, join, isfile, isdir, splitext
 from shutil import copy, copyfileobj, rmtree
 from urllib.request import urlopen
 from subprocess import call, Popen
+from re import match
 from sys import exit
 
 SCRIPT_DIR   = os.getcwd()
@@ -273,6 +277,8 @@ def generate_favicon_resources():
     android_res = [ "192" ]
     apple_res   = [ "57", "76", "120", "152", "180" ] # add to head backwards
     if not isdir("static/favicon"): os.makedirs("static/favicon")
+
+    # generate favicon resources
     for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
         # TODO: add exception checking
         if res in android_res: name = and_tpl(res)
@@ -288,6 +294,7 @@ def generate_favicon_resources():
     for res in [ r for r in ico_res if r not in fav_res ]:
         os.remove(fav_path(fav_tpl(res)))
     
+    # return routes for generated favicon resources
     fav_route = lambda f:   STATIC_ROUTE(f, f, "static/favicon")
     app_route = lambda p,t: STATIC_ROUTE(p, t("57"), "static/favicon")
     return ([ fav_route(fav_tpl(r)) for r in fav_res ] +
@@ -298,30 +305,41 @@ def generate_favicon_resources():
               app_route("apple-touch-icon-precomposed.png", pra_tpl) ])
 
 
+def generate_stylesheets():
+    sass_path  = join( SCRIPT_DIR, "dev/sass" )
+    is_sass    = lambda f: splitext(f)[-1].lower() in ['.scss', '.sass']
+    is_mixin   = lambda f: match(r'.*mixins?$', splitext(f)[0].lower())
+    get_import = lambda p: [ join(root, file) for root, d, files in os.walk(p)
+                             for file in files if is_sass(file) ]
+    if not isdir("static/css"): os.makedirs("static/css")
 
-def generate_stylesheets(): # dont use a general solution
-    def get_imports(path):
-        for root, dirs, files in os.walk(path):
-            # uncomment to manually choose which partials to include 
-            #if 'partials' in dirs: dirs.remove('partials')
-            for file in files:
-                if not file.startswith('~') \
-                and splitext(f)[-1].lower() in ['.scss', '.sass']:
-                    yield join(relpath(root, path), file).replace('\\', '/')
+    # generate _all.scss file from existing sass resources
+    # TODO: this will only work for the de4fault sass directory setup
+    with open( join( sass_path, '_all.scss' ), 'w') as f:
+        f.write('\n'.join( # probably not the most effecient way
+            [ '@import "{}";'.format(path.replace('\\', '/')) for path in 
+                ( # mixins and global variables must be imported first
+                    # modules
+                    [ f for f in get_import('modules') ]
+                    # vendor mixins 
+                  + [ f for f in get_import('vendor') if is_mixin(f) ]
+                    # all other vendor files
+                  + [ f for f in get_import('vendor') if not is_mixin(f) ]
+                    # partials (comment out this line for manually selection)
+                  + [ f for f in get_import('partials') ]
+                ) 
+            ] ) 
+        )
 
-    with open('_all.scss', 'w') as f:
-        imports = list(get_imports(os.getcwd()))
-        for item in imports: # move all mixins to the top
-            if re.match(r'.*mixins?$', splitext(item.split('/')[-1])[0]):
-                dirs.insert(0, dirs.pop(dirs.index(item)))
-        f.write('\n'.join(imports))
+    # use sass command line tool to generate stylesheets
 
-       #     if 'modules' in dirs: # modules folder must be imported first
-       #         dirs.insert(0, dirs.pop(dirs.index('modules')))
-       # is_sass    = lambda f: splitext(f)[-1].lower() in ['.scss', '.sass']
-       # get_import = lambda p: '@import "{}";'.format(p.replace('\\', '/'))
 
-rmtree('www')
+    # return css routes from generated stylesheets
+    return ""
+
+
+
+#rmtree('www')
 
 
 os.chdir(args.path)
@@ -337,6 +355,7 @@ with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
 
 # generate app.py
 # TODO: hide headers if there are no routes for that section?
+# head is generated by inspecting www and seeing what files are there
 Template.populate(APP_PY_TEMPLATE, 'app.py', 
     doc_string=900,
     main_routes=migrate_views(),
@@ -345,7 +364,7 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
     favicon_routes=generate_favicon_resources(),
     image_routes=migrate_static_files("res/img", "static/img"),
     font_routes=migrate_static_files("res/font", "static/font"),
-    css_routes="",
+    css_routes=generate_stylesheets(),
     js_routes="" )
 
 
