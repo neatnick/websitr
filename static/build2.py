@@ -49,22 +49,17 @@ class TemplateWrapper():
 
         self.cls = cls
         self.headers = [
-            # Primary python file header template
-            ( 
+            (   # Primary python file header template
                 compile(r'\$ph{(.*?)}'),
                 lambda x: "\n\n{1}\n##### {0} {2}\n{1}\n".format(
                     x.upper(), '#'*PYTHON_LL, '#'*(PYTHON_LL-len(x)-7) )
             ),
-
-            # Secondary python file header template
-            ( 
+            (   # Secondary python file header template
                 compile(r'\$sh{(.*?)}'),
                 lambda x: "\n### {0} {1}".format(
                     x, '#'*(PYTHON_LL-len(x)-5) )
             ),
-
-            # HTML file header template
-            ( 
+            (   # HTML file header template
                 compile(r'\$wh{(.*?)}'),
                 lambda x: "<!-- ***** {0} {1} -->".format(
                     x, '*'*(HTML_LL-len(x)-16) )
@@ -287,8 +282,6 @@ def generate_favicon_resources():
         # TODO: this wont work if there are android and ios duplicates
         call( [ "inkscape", "-z", "-e", fav_path(name), "-w", res, "-h", res, 
               favicon_tpl], shell=True )
-        print([ "inkscape", "-z", "-e", fav_path(name), "-w", res, "-h", res, 
-              favicon_tpl])
     call( ["convert"] + [fav_path(fav_tpl(r)) for r in ico_res] + 
           [fav_path("favicon.ico")], shell=True )
     for res in [ r for r in ico_res if r not in fav_res ]:
@@ -306,17 +299,18 @@ def generate_favicon_resources():
 
 
 def generate_stylesheets():
-    sass_path  = join( SCRIPT_DIR, "dev/sass" )
+    dev_path   = join( SCRIPT_DIR, "dev/sass" )
     is_sass    = lambda f: splitext(f)[-1].lower() in ['.scss', '.sass']
     is_mixin   = lambda f: match(r'.*mixins?$', splitext(f)[0].lower())
-    get_import = lambda p: [ join(root, file) for root, d, files in os.walk(p)
-                             for file in files if is_sass(file) ]
+    get_import = lambda p: [ join( relpath(r, dev_path), f ) 
+                             for r, d, fs in os.walk( join(dev_path, p) ) 
+                             for f in fs if is_sass(f) ]
     if not isdir("static/css"): os.makedirs("static/css")
 
     # generate _all.scss file from existing sass resources
-    # TODO: this will only work for the de4fault sass directory setup
-    with open( join( sass_path, '_all.scss' ), 'w') as f:
-        f.write('\n'.join( # probably not the most effecient way
+    # TODO: this will only work for the default sass directory setup
+    with open( join( dev_path, '_all.scss' ), 'w') as f:
+        f.write('\n'.join( # probably not the most efficient way
             [ '@import "{}";'.format(path.replace('\\', '/')) for path in 
                 ( # mixins and global variables must be imported first
                     # modules
@@ -332,14 +326,28 @@ def generate_stylesheets():
         )
 
     # use sass command line tool to generate stylesheets
-
+    stylesheets = [ splitext(f)[0] for f in os.listdir(dev_path) 
+                    if is_sass(f) and not f.startswith('_') ]
+    sass_path = relpath(dev_path, os.getcwd()).replace('\\', '/')
+    if args.deploy:
+        for s in stylesheets:
+            call("sass {0}/{1}.scss static/css/{1}.min.css".format(sass_path, s) 
+                + " -t compressed --sourcemap=none -C", shell=True)
+        os.remove( join(dev_path, "_all.scss") )
+    #else: # TODO: if dev mode add sass maps to routes
+    #    WATCH_SASS_SCRIPT.populate('watch.py')
+    #    if (os.name == 'nt'):
+    #        subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets, 
+    #            creationflags = subprocess.CREATE_NEW_CONSOLE )
+    #    else:
+    #        subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets)
 
     # return css routes from generated stylesheets
     return ""
 
 
 
-#rmtree('www')
+rmtree('www')
 
 
 os.chdir(args.path)
