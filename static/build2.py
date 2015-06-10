@@ -276,12 +276,11 @@ def generate_favicon_resources():
     # generate favicon resources
     for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
         # TODO: add exception checking
-        if res in android_res: name = and_tpl(res)
-        elif res in apple_res: name = app_tpl(res)
-        else:                  name = fav_tpl(res)
+        if res in android_res: path = fav_path(and_tpl(res))
+        elif res in apple_res: path = fav_path(app_tpl(res))
+        else:                  path = fav_path(fav_tpl(res))
         # TODO: this wont work if there are android and ios duplicates
-        call( [ "inkscape", "-z", "-e", fav_path(name), "-w", res, "-h", res, 
-              favicon_tpl], shell=True )
+        call(["inkscape", "-z", "-e", path, "-w", res, "-h", res, favicon_tpl])
     call( ["convert"] + [fav_path(fav_tpl(r)) for r in ico_res] + 
           [fav_path("favicon.ico")], shell=True )
     for res in [ r for r in ico_res if r not in fav_res ]:
