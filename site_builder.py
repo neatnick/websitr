@@ -17,21 +17,17 @@ Copyright (c) 2015, Nick Balboni.
 License: BSD (see LICENSE for details)
 """
 
-import os, sys 
-import time, subprocess
-import urllib.request, shutil
-from string import Template
-import errno, re
-import argparse
 
 
+################################################################################
+##### Command Line Interface ###################################################
+################################################################################
 
-########################################################################################################################
-##### Command Line Interface ###########################################################################################
-########################################################################################################################
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import os
 
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+parser = ArgumentParser(
+    formatter_class=ArgumentDefaultsHelpFormatter,
     description=__doc__ )
 parser.add_argument("name", 
     type=str,
@@ -45,81 +41,140 @@ parser.add_argument("-p", "--path",
     help="the path to the desired location of the new project." )
 parser.add_argument("-f", "--favicon", 
     type=str,
-    help="location of image file to be used as the favicon for the project. If an absolute path is "
-    "not given, location will be assumed to be relative to the location of this script. It is "
-    "required to provide a square svg file for use here." )
+    help="location of image file to be used as the favicon for the project. "
+    "If an absolute path is not given, location will be assumed to be relative "
+    "to the location of this script. It is required to provide a square svg "
+    "file for use here." )
 parser.add_argument("-r", "--resources", 
     type=str,
     nargs='+',
-    help="locations of any additional resources to be added to the project. If an absolute path is "
-    "not given, location will be assumed to be relative to the location of this script." )
+    help="locations of any additional resources to be added to the project. If "
+    "an absolute path is not given, location will be assumed to be relative to "
+    "the location of this script." )
 args = parser.parse_args()
 
 
 
-########################################################################################################################
-##### Templates ########################################################################################################
-########################################################################################################################
+################################################################################
+##### Overrides ################################################################
+################################################################################
 
-# template setup
-MYTEMPLATE = """\
+OVERRIDES = """\
 from string import Template
+from re import compile
 
-class MyTemplate(Template):
-    def populate(self, filename, **kwargs):
+class TemplateWrapper():
+
+    def __init__(self, cls):
+        PYTHON_LL = 80
+        HTML_LL   = 120
+
+        self.cls = cls
+        self.headers = [
+            (   # Primary python file header template
+                compile(r'\$ph{(.*?)}'),
+                lambda x: "\\n\\n{1}\\n##### {0} {2}\\n{1}\\n".format(
+                    x.upper(), '#'*PYTHON_LL, '#'*(PYTHON_LL-len(x)-7) )
+            ),
+            (   # Secondary python file header template
+                compile(r'\$sh{(.*?)}'),
+                lambda x: "\\n### {0} {1}".format(
+                    x, '#'*(PYTHON_LL-len(x)-5) )
+            ),
+            (   # HTML file header template
+                compile(r'\$wh{(.*?)}'),
+                lambda x: "<!-- ***** {0} {1} -->".format(
+                    x, '*'*(HTML_LL-len(x)-16) )
+            )
+        ]
+        
+    def __call__(self, template):
+        for header in self.headers:
+            ptn, tpl = header
+            for match in ptn.finditer(template):
+                replacements = ( match.group(0), tpl(match.group(1)) )
+                template = template.replace(*replacements)
+        template_obj = self.cls(template)
+        template_obj.populate = self.populate
+        return template_obj
+
+    @staticmethod
+    def populate(template, filepath, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, list):
+                kwargs[key] = "\\n".join(
+                    [ t[0].safe_substitute(**t[1]) for t in value ]
+                )
         try:
-            with open(filename, 'w') as f:
-                f.write(self.sub(**kwargs))
+            with open(filepath, 'w') as f:
+                f.write(template.safe_substitute(**kwargs))
         except Exception as exception:
             raise exception
 
-    def sub(self, **kwargs):
-        for key, value in kwargs.items():
-            if key.startswith("ph_"):
-                kwargs[key] = self.get_primary_header(value)
-            if key.startswith("sh_"):
-                kwargs[key] = self.get_secondary_header(value)
-        return super(MyTemplate, self).safe_substitute(**kwargs)
-
-    def get_primary_header(header):
-        header = ('#'*5) + ' ' + header.upper() + ' '
-        header += ('#'*(121-len(header)))
-        return '\\n\\n' + ('#'*121) + '\\n' + header + "\\n" + ('#'*121)
-
-    def get_secondary_header(header):
-        header = ('#'*3) + ' ' + header + ' '
-        header += ('#'*(121-len(header)))
-        return header"""
-
-with open('templates.py', 'w') as f:
-    f.write(MYTEMPLATE)
+Template = TemplateWrapper(Template)
 
 
-from templates import MyTemplate
+from subprocess import Popen, call, DEVNULL, STDOUT, PIPE
+from sys import executable
 
-BASE_PARTIAL_SASS_TEMPLATE = MyTemplate("""\
+def sPopen(*args):
+    command, shell = list(args), True
+    if command[0] == 'python': 
+        command[0] = executable
+        shell = False
+    if os.name == 'nt':
+        from subprocess import CREATE_NEW_CONSOLE
+        Popen( command, shell=shell, creationflags=CREATE_NEW_CONSOLE )
+    else:
+        Popen( command, shell=shell )
+
+def sCall(*args):
+    command, shell = list(args), True
+    if command[0] == 'python': 
+        command[0] = executable
+        shell = False
+    call( command, shell=shell, stdout=DEVNULL, stderr=STDOUT )
+"""
+
+with open('overrides.py', 'w') as f:
+    f.write(OVERRIDES)
+
+from overrides import sPopen, sCall
+from overrides import TemplateWrapper
+from string import Template
+
+Template = TemplateWrapper(Template)
+
+
+
+################################################################################
+##### Templates ################################################################
+################################################################################
+
+BASE_PARTIAL_SASS_TEMPLATE = Template("""\
 body.main {
     @include fixpos(0);
     margin: 0;
     padding: 0;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
-    font-family: $main-font-stack; }""" )
+    font-family: $main-font-stack; }
+""" )
 
 
-BASE_MODULE_SASS_TEMPLATE = MyTemplate("""\
+BASE_MODULE_SASS_TEMPLATE = Template("""\
 $main-font-stack: 'Lato', sans-serif;
 
 """ )
 
 
-STYLES_SASS_TEMPLATE = MyTemplate("""\
+STYLES_SASS_TEMPLATE = Template("""\
 @import "all";
 
 """ )
 
 
-UPDATE_SASS_TEMPLATE = MyTemplate("""\
+UPDATE_SASS_TEMPLATE = Template("""\
 from urllib.request import urlopen
 from shutil import copyfileobj
 import os
@@ -163,15 +218,17 @@ def populate_resource(resource_name, resource_url):
 
 print("Updating external sass resources")
 for resource in RESOURCES:
-    populate_resource(resource['name'], resource['url'])""" )
+    populate_resource(resource['name'], resource['url'])
+""" )
 
 
 
-HEAD_TEMPLATE = MyTemplate("""\
+HEAD_TEMPLATE = Template("""\
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, 
+    maximum-scale=1.0, user-scalable=no">
 
     <title>{{title}}</title>
 
@@ -180,61 +237,68 @@ HEAD_TEMPLATE = MyTemplate("""\
     <meta name="favicon_elements">
     <meta name="open_graph">
     <meta name="stylesheets">
-</head>""" )
+</head>
+""" )
 
 
-INDEX_TEMPLATE = MyTemplate("""\
+INDEX_TEMPLATE = Template("""\
 <!DOCTYPE html>
 <html lang="en">
 % include('~head.tpl', title='$title', description='$description')
     <body>
     </body>
-</html>""" )
+</html>
+""" )
 
 
-ROUTES_TEMPLATE = MyTemplate("""\
-import textwrap
-
+ROUTES_TEMPLATE = Template("""\
 @route('/', method='POST')
 def api():
     if request.POST.get("v") == 'vendetta': 
-        return_val = \"""\\
-            Evey:  Who are you?
-               V:  Who? Who is but the form following the function of what, and what 
-                   I am is a man in a mask.
-            Evey:  Well I can see that.
-               V:  Of course you can. I'm not questioning your powers of observation; 
-                   I'm merely remarking upon the paradox of asking a masked man who 
-                   he is.
-            Evey:  Oh. Right.
-               V:  But on this most auspicious of nights, permit me then, in lieu of 
-                   the more commonplace sobriquet, to suggest the character of this 
-                   dramatis persona.
-               V:  Voila! In view, a humble vaudevillian veteran cast vicariously as 
-                   both victim and villain by the vicissitudes of Fate. This visage, 
-                   no mere veneer of vanity, is a vestige of the vox populi, now 
-                   vacant, vanished. However, this valourous visitation of a bygone 
-                   vexation stands vivified and has vowed to vanquish these venal and 
-                   virulent vermin vanguarding vice and vouchsafing the violently 
-                   vicious and voracious violation of volition! The only verdict is 
-                   vengeance; a vendetta held as a votive, not in vain, for the value 
-                   and veracity of such shall one day vindicate the vigilant and the 
-                   virtuous. Verily, this vichyssoise of verbiage veers most verbose, 
-                   so let me simply add that it's my very good honour to meet you and 
-                   you may call me V.\"""
-        return textwrap.dedent(return_val)
-    return load_home()""" )
+        return \"""\\
+Evey:  Who are you?
+   V:  Who? Who is but the form following the function of what, and what 
+       I am is a man in a mask.
+Evey:  Well I can see that.
+   V:  Of course you can. I'm not questioning your powers of observation; 
+       I'm merely remarking upon the paradox of asking a masked man who 
+       he is.
+Evey:  Oh. Right.
+   V:  But on this most auspicious of nights, permit me then, in lieu of 
+       the more commonplace sobriquet, to suggest the character of this 
+       dramatis persona.
+   V:  Voila! In view, a humble vaudevillian veteran cast vicariously as 
+       both victim and villain by the vicissitudes of Fate. This visage, 
+       no mere veneer of vanity, is a vestige of the vox populi, now 
+       vacant, vanished. However, this valourous visitation of a bygone 
+       vexation stands vivified and has vowed to vanquish these venal and 
+       virulent vermin vanguarding vice and vouchsafing the violently 
+       vicious and voracious violation of volition! The only verdict is 
+       vengeance; a vendetta held as a votive, not in vain, for the value 
+       and veracity of such shall one day vindicate the vigilant and the 
+       virtuous. Verily, this vichyssoise of verbiage veers most verbose, 
+       so let me simply add that it's my very good honour to meet you and 
+       you may call me V.
+\"""
+    return load_root()
+""" )
 
 
-ROBOTS_TEMPLATE = MyTemplate("""\
+ROBOTS_TEMPLATE = Template("""\
 User-agent: *
-Disallow:""" )
+Disallow:
+""" )
 
 
 
-########################################################################################################################
-##### Script Body ######################################################################################################
-########################################################################################################################
+################################################################################
+##### Script Body ##############################################################
+################################################################################
+
+import sys 
+import time
+import urllib.request, shutil
+import errno, re
 
 SCRIPT_DIR     = os.getcwd()
 PROJECT_DIR    = os.path.join(os.path.abspath(args.path), args.name)
@@ -257,7 +321,7 @@ def fatal_exception(exception, message="", cleanup=True):
 
 
 def non_fatal_exception(exception, message, *args):
-    while (1):
+    while 1:
         response = input(message)
         if (RE_USER_ACCEPT.match(response)):
             return
@@ -287,12 +351,14 @@ except OSError as exception:
 try:
     os.makedirs(args.name)
 except OSError as exception:
-    if (exception.errno == errno.EEXIST): # TODO: add ability to update an already existing project
+    # TODO: add ability to update an already existing project
+    if (exception.errno == errno.EEXIST): 
         shutil.rmtree(args.name)
         os.makedirs(args.name)
         #non_fatal_exception(exception,
-        #    "Folder already exists at \'{}\' with the desired project name.".format(os.getcwd()) +
-        #    " Do you wish to proceed (script will use this folder for the project)? [yes/no]", False)
+        #    "Folder already exists at \'{}\' ".format(os.getcwd())    + 
+        #    "with the desired project name. Do you wish to proceed? " +
+        #    "(script will use this folder for the project)? [yes/no]", False)
     else:
         fatal_exception(exception, "Could not create project folder", False)
 
@@ -338,11 +404,8 @@ except Exception as exception:
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/vendor'))
     UPDATE_SASS_TEMPLATE.populate('update.py')
-    if (os.name == 'nt'):
-        #wait for update to finish so that sass can properly be compiled when site is built
-        subprocess.call([sys.executable, 'update.py'], creationflags = subprocess.CREATE_NEW_CONSOLE)
-    else:
-        subprocess.call([sys.executable, 'update.py'])
+    sCall( 'python', 'update.py' ) # wait for update to finish
+    # so that sass can properly be compiled when site is built
 except Exception as exception:
     fatal_exception(exception, "Could not pull in external sass resources")
 
@@ -372,7 +435,8 @@ try: # TODO: add checking if image doesn't meet requirements
             raise Exception("Given image file does not meet requirements")
         shutil.copy(args.favicon, "favicon.svg")
 except Exception as exception:
-    non_fatal_exception(exception, "Unable to import favicon image. Do you wish to proceed? [yes/no]")
+    non_fatal_exception(exception, 
+        "Unable to import favicon image. Do you wish to proceed? [yes/no]")
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res'))
@@ -391,9 +455,13 @@ try:
             name = os.path.split(resource)[-1]
             ext = os.path.splitext(resource)[-1].lower()
             if ext == '.svg':
-                font_posibilities = [resource[:-4] + '.eot', resource[:-4] + '.ttf', resource[:-4] + '.woff']
+                font_posibilities = [
+                                        resource[:-4] + '.eot', 
+                                        resource[:-4] + '.ttf', 
+                                        resource[:-4] + '.woff'
+                                    ]
                 if any(res in resources for res in font_posibilities): 
-                    # if there is a font file of the same name this one is probably a font too
+                    # font file with same name means this one is a font too
                     shutil.copy(resource, os.path.join('font', name))
                 else:
                     shutil.copy(resource, os.path.join('img', name))
@@ -408,7 +476,7 @@ except Exception as exception:
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res/static'))
-    if not os.path.isfile('robots.txt'): #user may have imported their own robots.txt
+    if not os.path.isfile('robots.txt'): #user may have imported a robots.txt
         ROBOTS_TEMPLATE.populate('robots.txt')
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
@@ -419,13 +487,10 @@ print("Generating website in temporary directory")
 try:
     os.chdir(PROJECT_DIR)
     populate_static_resource('build.py') # TODO: add build.py as a template
-    if (os.name == 'nt'):
-        subprocess.Popen([sys.executable, 'build.py', '-d'], creationflags = subprocess.CREATE_NEW_CONSOLE)
-    else:
-        subprocess.Popen([sys.executable, 'build.py', '-p', '.'])
+    sPopen('python', 'build.py', '-d')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
 
 
 os.chdir(args.path)
-os.remove("templates.py")
+os.remove("overrides.py")
