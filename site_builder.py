@@ -291,6 +291,312 @@ Disallow:
 
 
 
+BUILD_PY_TEMPLATE = Template("""\
+$ph{Command Line Interface}
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from tempfile import gettempdir
+import os
+
+parser = ArgumentParser(
+    formatter_class=ArgumentDefaultsHelpFormatter,
+    description=__doc__ )
+parser.add_argument("-p", "--path", 
+    type=str,
+    help="the path to the desired location of the generated site")
+parser.add_argument("-d", "--deploy",
+    action="store_true",
+    help="package site for movement to deployment server. Default path is the"
+    "current working directory, but the path flag will override that value" )
+parser.add_argument("-r", "--reuse",
+    action="store_true",
+    help="if an already built website exists at the targeted path, attempt to"
+    "reuse already present resources (i.e. images, favicon elements and other" 
+    "static resources)" )
+args = parser.parse_args()
+
+if args.path is None:
+    if args.deploy:
+        args.path = os.getcwd()
+    else:
+        args.path = gettempdir()
+
+$ph{Overrides}
+${override_str}
+$ph{Templates}
+
+APP_PY_TEMPLATE = Template(\"""\\
+from bottle import run, route, get, post, error
+from bottle import static_file, template, request
+from bottle import HTTPError
+
+$ph{Command Line Interface}
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from inspect import getframeinfo, currentframe
+from os.path import dirname, abspath
+import os
+
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    description=__doc__ )                                
+parser.add_argument('-d', '--deploy',
+    action='store_true',
+    help='Run server for deployment' )       
+parser.add_argument('-i', '--ip', 
+    type=str,
+    default="127.0.0.1",
+    help='ip to run the server against, default localhost' ) 
+parser.add_argument('-p', '--port', 
+    type=str,
+    default="8080",
+    help='port to run server on' ) 
+args = parser.parse_args()
+
+# change working directory to script directory
+os.chdir(dirname(abspath(getframeinfo(currentframe()).filename)))
+
+$ph{Main Site Routes}
+${main_routes}
+$ph{API and Additional Site Routes}
+${api_routes}
+
+$ph{Static Routes}
+${static_routes}
+$sh{Favicon Routes}
+${favicon_routes}
+$sh{Image Routes}
+${image_routes}
+$sh{Font Routes}
+${font_routes}
+$sh{Stylesheet Routes}
+${css_routes}
+$sh{Javascript Routes}
+${js_routes}
+$ph{Error Routes}
+@error(404)
+def error404(error):
+    return 'nothing to see here'
+
+$ph{Run Server}
+if args.deploy:
+    run(host=args.ip, port=args.port, server='cherrypy') #deployment
+else:
+    run(host=args.ip, port=args.port, debug=True, reloader=True) #development 
+\""" )
+
+
+MAIN_ROUTE_TEMPLATE = Template(\"""\\
+@route('/${path}')
+def ${method_name}():
+    return template('${template}', request=request, template='${template}')
+\""" )
+
+
+STATIC_ROUTE_TEMPLATE = Template(\"""\\
+@get('/${path}')
+def load_resource():
+    return static_file('${file}', root='${root}')
+\""" )
+
+
+WATCH_SASS_SCRIPT = Template(\"""\\
+from sys import argv
+from shutil import rmtree
+from subprocess import Popen
+from inspect import getframeinfo, currentframe
+from os.path import dirname, abspath, isdir, isfile
+import os
+
+# change working directory to script directory
+os.chdir(dirname(abspath(getframeinfo(currentframe()).filename)))
+
+command = "sass --watch"
+for x in range(1, len(argv)):
+    command += " {0}.scss:../../www/static/css/{0}.css".format(argv[x])
+p = Popen(command, shell=True)
+try:
+    while True:
+        pass
+except KeyboardInterrupt:
+    p.kill()
+    if isfile("_all.scss"): os.remove("_all.scss")
+    if isdir(".sass-cache"): rmtree(".sass-cache")
+    os.remove("watch.py") # argv[0] contains full path
+\""" )
+
+$ph{Script Body}
+from os.path import relpath, normpath, join, isfile, isdir, splitext
+from shutil import copy, copyfileobj, rmtree
+from urllib.request import urlopen
+from time import sleep
+from re import match
+from sys import exit
+
+SCRIPT_DIR   = os.getcwd()
+PROJECT_NAME = relpath(SCRIPT_DIR, "..")
+STATIC_ROUTE = lambda p, f, r: \\
+    ( STATIC_ROUTE_TEMPLATE, { "path": p, "file": f, "root": r } )
+MAIN_ROUTE   = lambda p, m, t: \\
+    ( MAIN_ROUTE_TEMPLATE, { "path": p, "method_name": m, "template": t } )
+
+def fatal_exception(exception, message="", cleanup=True):
+    print("*******SCRIPT FAILED*******")
+    if message: print(message)
+    print("Exception: ", exception)
+    if cleanup:
+        try:
+            os.chdir(args.path)
+            rmtree('www')
+        except Exception as e:
+            print(e)
+    exit(1)
+
+
+def migrate_files(directory, destination):
+    src_path = join(SCRIPT_DIR, directory)
+    if not isdir(destination): os.makedirs(destination)
+    for root, dirs, files in os.walk(src_path):
+        for dirname in dirs:
+            if dirname.startswith('!') or dirname in ['.DS_STORE']:
+                dirs.remove(dirname)
+        for filename in files:
+            if not filename.startswith('!'):
+                if not isfile(filename): #added for the reuse flag
+                    copy(join(root, filename), join(destination, filename))
+                if not filename.startswith('~'):
+                    yield normpath(join(relpath(root, src_path), 
+                                        filename) ).replace('\\\\', '/')
+
+
+def migrate_views():
+    return ([ MAIN_ROUTE("", "load_root", "index") ] + 
+            [ MAIN_ROUTE(
+                splitext(r)[0],
+                "load_" + splitext(r.split("/")[-1])[0].replace("-","_"),
+                splitext(r.split("/")[-1])[0] 
+            ) for r in migrate_files("dev/views", "views") ])
+
+
+def get_api_routes(): # TODO: multiple file support here?
+    with open( join(SCRIPT_DIR, "dev/py", "routes.py"), 'r') as f: 
+        return f.read()
+
+
+def migrate_static_files(source, destination):
+    return [ STATIC_ROUTE(r, r.split("/")[-1], destination)
+                for r in migrate_files(source, destination) ]
+
+
+def generate_favicon_resources(): # TODO: adhere to ! ~ rules?
+    fav_tpl     = lambda r: "favicon-{0}x{0}.png".format(r)
+    and_tpl     = lambda r: "touch-icon-{0}x{0}.png".format(r)
+    app_tpl     = lambda r: "apple-touch-icon-{0}x{0}.png".format(r)
+    pra_tpl     = lambda r: "apple-touch-icon-{0}x{0}-precomposed.png".format(r)
+    fav_path    = lambda p: normpath(join("static/favicon", p))
+    favicon_tpl = normpath(join(SCRIPT_DIR, "res/favicon.svg"))
+    ico_res     = [ "16", "24", "32", "48", "64", "128", "256" ]
+    fav_res     = [ "16", "32", "96", "160", "196", "300" ]
+    android_res = [ "192" ]
+    apple_res   = [ "57", "76", "120", "152", "180" ] # add to head backwards
+    if not isdir("static/favicon"): os.makedirs("static/favicon")
+
+    # generate favicon resources
+    for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
+        # TODO: add exception checking
+        if res in android_res: path = fav_path(and_tpl(res))
+        elif res in apple_res: path = fav_path(app_tpl(res))
+        else:                  path = fav_path(fav_tpl(res))
+        # TODO: this wont work if there are android and ios duplicates
+        sCall("inkscape", "-z", "-e", path, "-w", res, "-h", res, favicon_tpl)
+    # TODO: theres gotta be a cleaner way than this (bet i can get it on 1 line)
+    sCall( *(["convert"] + [fav_path(fav_tpl(r)) for r in ico_res] + 
+             [fav_path("favicon.ico")]) )
+    for res in [ r for r in ico_res if r not in fav_res ]:
+        os.remove(fav_path(fav_tpl(res)))
+    
+    # return routes for generated favicon resources
+    fav_route = lambda f:   STATIC_ROUTE(f, f, "static/favicon")
+    app_route = lambda p,t: STATIC_ROUTE(p, t("57"), "static/favicon")
+    return ([ fav_route(fav_tpl(r)) for r in fav_res ] +
+            [ fav_route(and_tpl(r)) for r in android_res ] +
+            [ fav_route(app_tpl(r)) for r in apple_res if r!="57" ] +
+            [ fav_route(pra_tpl(r)) for r in apple_res if r!="57" ] +
+            [ app_route("apple-touch-icon.png", app_tpl),
+              app_route("apple-touch-icon-precomposed.png", pra_tpl) ])
+
+
+def generate_stylesheets(): # TODO: adhere to ! ~ rules?
+    dev_path   = join( SCRIPT_DIR, "dev/sass" )
+    is_sass    = lambda f: splitext(f)[-1].lower() in ['.scss', '.sass']
+    is_mixin   = lambda f: match(r'.*mixins?$', splitext(f)[0].lower())
+    get_import = lambda p: [ join( relpath(r, dev_path), f ) 
+                             for r, d, fs in os.walk( join(dev_path, p) ) 
+                             for f in fs if is_sass(f) ]
+    if not isdir("static/css"): os.makedirs("static/css")
+
+    # generate _all.scss file from existing sass resources
+    # TODO: this will only work for the default sass directory setup
+    with open( join( dev_path, '_all.scss' ), 'w') as f:
+        f.write('\\n'.join( # probably not the most efficient way
+            [ '@import "{}";'.format(path.replace('\\\\', '/')) for path in 
+                ( # mixins and global variables must be imported first
+                    # modules
+                    [ f for f in get_import('modules') ]
+                    # vendor mixins 
+                  + [ f for f in get_import('vendor') if is_mixin(f) ]
+                    # all other vendor files
+                  + [ f for f in get_import('vendor') if not is_mixin(f) ]
+                    # partials (comment out this line for manually selection)
+                  + [ f for f in get_import('partials') ]
+                ) 
+            ] ) 
+        )
+
+    # use sass command line tool to generate stylesheets
+    stylesheets = [ splitext(f)[0] for f in os.listdir(dev_path) 
+                    if is_sass(f) and not f.startswith('_') ]
+    sass_path = relpath(dev_path, os.getcwd()).replace('\\\\', '/')
+    if args.deploy:
+        for s in stylesheets:
+            sCall("sass", sass_path+"/"+s+".scss", "static/css/"+s+".min.css", 
+                  "-t", "compressed", "--sourcemap=none", "-C")
+        os.remove( join(dev_path, "_all.scss") )
+    else: # TODO: if dev mode add sass maps to routes
+        Template.populate(WATCH_SASS_SCRIPT, '../dev/sass/watch.py')
+        sPopen( 'python', '../dev/sass/watch.py', *stylesheets )
+        sleep(3) # delay so the stylesheets have time to be created
+
+    # return css routes from generated stylesheets
+    return [ STATIC_ROUTE(f, f, "static/css") for f in os.listdir("static/css")]
+
+
+
+os.chdir(args.path)
+if isdir('www'): rmtree('www')
+os.makedirs("www")
+os.chdir("www") # all operations will happen relative to www
+
+# import bottle framework
+bottle_url = ( "https://raw.githubusercontent.com/"
+                "bottlepy/bottle/master/bottle.py" )
+with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
+    copyfileobj(response, f)
+
+# generate app.py
+# TODO: hide headers if there are no routes for that section?
+Template.populate(APP_PY_TEMPLATE, 'app.py', 
+    doc_string="",
+    main_routes=migrate_views(),
+    api_routes=get_api_routes(),
+    static_routes=migrate_static_files("res/static", "static"),
+    favicon_routes=generate_favicon_resources(),
+    image_routes=migrate_static_files("res/img", "static/img"),
+    font_routes=migrate_static_files("res/font", "static/font"),
+    css_routes=generate_stylesheets(),
+    js_routes="" )
+""" )
+
+
+
 ################################################################################
 ##### Script Body ##############################################################
 ################################################################################
@@ -311,7 +617,9 @@ def fatal_exception(exception, message="", cleanup=True):
     if (message): print(message)
     print("Exception: ", exception)
     os.chdir(args.path)
-    os.remove("templates.py")
+    os.remove("overrides.py")
+    sys.exit(1)
+    
     if (cleanup):
         try:
             shutil.rmtree(args.name)
@@ -327,17 +635,6 @@ def non_fatal_exception(exception, message, *args):
             return
         if (RE_USER_DENY.match(response)):
             fatal_exception(exception, "Script canceled by user", *args)
-
-
-def populate_static_resource(*args):
-    for resource_name in args:
-        src_path = os.path.join(SCRIPT_DIR, "static/{}".format(resource_name))
-        try:
-            shutil.copy(src_path, resource_name)
-        except Exception as exception:
-            fatal_exception(exception, 
-                "Could not populate resource: {}".format(resource_name))
-
 
 
 
@@ -367,7 +664,7 @@ except OSError as exception:
 print("Building out directory structure for the project")
 try:
     os.chdir(PROJECT_DIR)
-    os.makedirs("dev/coffee")
+    os.makedirs("dev/ts")
     os.makedirs("dev/py")
     os.makedirs("dev/sass/modules")
     os.makedirs("dev/sass/partials")
@@ -384,7 +681,7 @@ except OSError as exception:
 print("Setting up python resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/py'))
-    ROUTES_TEMPLATE.populate('routes.py')
+    Template.populate(ROUTES_TEMPLATE, 'routes.py')
 except Exception as exception:
     fatal_exception(exception, "Could not create routes file")
 
@@ -393,17 +690,17 @@ except Exception as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
-    STYLES_SASS_TEMPLATE.populate('styles.scss')
+    Template.populate(STYLES_SASS_TEMPLATE, 'styles.scss')
     os.chdir('partials')
-    BASE_PARTIAL_SASS_TEMPLATE.populate('_base.scss')
+    Template.populate(BASE_PARTIAL_SASS_TEMPLATE, '_base.scss')
     os.chdir('../modules')
-    BASE_MODULE_SASS_TEMPLATE.populate('_base.scss')
+    Template.populate(BASE_MODULE_SASS_TEMPLATE, '_base.scss')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/vendor'))
-    UPDATE_SASS_TEMPLATE.populate('update.py')
+    Template.populate(UPDATE_SASS_TEMPLATE, 'update.py')
     sCall( 'python', 'update.py' ) # wait for update to finish
     # so that sass can properly be compiled when site is built
 except Exception as exception:
@@ -414,8 +711,8 @@ except Exception as exception:
 print("Creating default views for bottle project")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/views'))
-    HEAD_TEMPLATE.populate('~head.tpl')
-    INDEX_TEMPLATE.populate('index.tpl', 
+    Template.populate(HEAD_TEMPLATE, '~head.tpl')
+    Template.populate(INDEX_TEMPLATE, 'index.tpl', 
         title=args.name, 
         description="Welcome to {}!".format(args.name) )
 except Exception as exception:
@@ -477,7 +774,7 @@ except Exception as exception:
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res/static'))
     if not os.path.isfile('robots.txt'): #user may have imported a robots.txt
-        ROBOTS_TEMPLATE.populate('robots.txt')
+        Template.populate(ROBOTS_TEMPLATE, 'robots.txt')
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
 
@@ -486,8 +783,9 @@ except Exception as exception:
 print("Generating website in temporary directory")
 try:
     os.chdir(PROJECT_DIR)
-    populate_static_resource('build.py') # TODO: add build.py as a template
-    sPopen('python', 'build.py', '-d')
+    Template.populate(BUILD_PY_TEMPLATE, 'build.py',
+                      override_str=OVERRIDES)
+    #sPopen('python', 'build.py', '-d')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
 
