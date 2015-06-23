@@ -311,7 +311,9 @@ def fatal_exception(exception, message="", cleanup=True):
     if (message): print(message)
     print("Exception: ", exception)
     os.chdir(args.path)
-    os.remove("templates.py")
+    os.remove("overrides.py")
+    sys.exit(1)
+
     if (cleanup):
         try:
             shutil.rmtree(args.name)
@@ -327,16 +329,6 @@ def non_fatal_exception(exception, message, *args):
             return
         if (RE_USER_DENY.match(response)):
             fatal_exception(exception, "Script canceled by user", *args)
-
-
-def populate_static_resource(*args):
-    for resource_name in args:
-        src_path = os.path.join(SCRIPT_DIR, "static/{}".format(resource_name))
-        try:
-            shutil.copy(src_path, resource_name)
-        except Exception as exception:
-            fatal_exception(exception, 
-                "Could not populate resource: {}".format(resource_name))
 
 
 
@@ -367,7 +359,7 @@ except OSError as exception:
 print("Building out directory structure for the project")
 try:
     os.chdir(PROJECT_DIR)
-    os.makedirs("dev/coffee")
+    os.makedirs("dev/ts")
     os.makedirs("dev/py")
     os.makedirs("dev/sass/modules")
     os.makedirs("dev/sass/partials")
@@ -384,7 +376,7 @@ except OSError as exception:
 print("Setting up python resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/py'))
-    ROUTES_TEMPLATE.populate('routes.py')
+    Template.populate(ROUTES_TEMPLATE, 'routes.py')
 except Exception as exception:
     fatal_exception(exception, "Could not create routes file")
 
@@ -393,17 +385,17 @@ except Exception as exception:
 print("Creating sass scripts and pulling in resources")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass'))
-    STYLES_SASS_TEMPLATE.populate('styles.scss')
+    Template.populate(STYLES_SASS_TEMPLATE, 'styles.scss')
     os.chdir('partials')
-    BASE_PARTIAL_SASS_TEMPLATE.populate('_base.scss')
+    Template.populate(BASE_PARTIAL_SASS_TEMPLATE, '_base.scss')
     os.chdir('../modules')
-    BASE_MODULE_SASS_TEMPLATE.populate('_base.scss')
+    Template.populate(BASE_MODULE_SASS_TEMPLATE, '_base.scss')
 except Exception as exception:
     fatal_exception(exception, "Could not build sass project")
 
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/sass/vendor'))
-    UPDATE_SASS_TEMPLATE.populate('update.py')
+    Template.populate(UPDATE_SASS_TEMPLATE, 'update.py')
     sCall( 'python', 'update.py' ) # wait for update to finish
     # so that sass can properly be compiled when site is built
 except Exception as exception:
@@ -414,8 +406,8 @@ except Exception as exception:
 print("Creating default views for bottle project")
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'dev/views'))
-    HEAD_TEMPLATE.populate('~head.tpl')
-    INDEX_TEMPLATE.populate('index.tpl', 
+    Template.populate(HEAD_TEMPLATE, '~head.tpl')
+    Template.populate(INDEX_TEMPLATE, 'index.tpl', 
         title=args.name, 
         description="Welcome to {}!".format(args.name) )
 except Exception as exception:
@@ -477,7 +469,7 @@ except Exception as exception:
 try:
     os.chdir(os.path.join(PROJECT_DIR, 'res/static'))
     if not os.path.isfile('robots.txt'): #user may have imported a robots.txt
-        ROBOTS_TEMPLATE.populate('robots.txt')
+        Template.populate(ROBOTS_TEMPLATE, 'robots.txt')
 except Exception as exception:
     fatal_exception(exception, "Could not create default robots.txt")
 
@@ -486,7 +478,7 @@ except Exception as exception:
 print("Generating website in temporary directory")
 try:
     os.chdir(PROJECT_DIR)
-    populate_static_resource('build.py') # TODO: add build.py as a template
+    shutil.copy(os.path.join(SCRIPT_DIR, 'build.py'), 'build.py')
     sPopen('python', 'build.py', '-d')
 except Exception as exception:
     fatal_exception(exception, "Unable to generate website")
