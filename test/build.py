@@ -85,6 +85,9 @@ class TemplateWrapper():
                 )
         try:
             with open(filepath, 'w') as f:
+                # TODO: rather than having all of these template objects I could
+                #       just convert from a string to a template here
+                #       i.e. : template = Template(template)
                 f.write(template.safe_substitute(**kwargs))
         except Exception as exception:
             raise exception
@@ -111,6 +114,8 @@ def sCall(*args):
     if command[0] == 'python': 
         command[0] = executable
         shell = False
+    if os.name != 'nt':
+        shell = False # TODO: not sure why i need this
     call( command, shell=shell, stdout=DEVNULL, stderr=STDOUT )
 
 
@@ -227,7 +232,7 @@ except KeyboardInterrupt:
 ##### Script Body ##############################################################
 ################################################################################
 
-from os.path import relpath, normpath, join, isfile, isdir, splitext
+from os.path import relpath, abspath, normpath, join, isfile, isdir, splitext
 from shutil import copy, copyfileobj, rmtree
 from urllib.request import urlopen
 from time import sleep
@@ -240,18 +245,6 @@ STATIC_ROUTE = lambda p, f, r: \
     ( STATIC_ROUTE_TEMPLATE, { "path": p, "file": f, "root": r } )
 MAIN_ROUTE   = lambda p, m, t: \
     ( MAIN_ROUTE_TEMPLATE, { "path": p, "method_name": m, "template": t } )
-
-def fatal_exception(exception, message="", cleanup=True):
-    print("*******SCRIPT FAILED*******")
-    if message: print(message)
-    print("Exception: ", exception)
-    if cleanup:
-        try:
-            os.chdir(args.path)
-            rmtree('www')
-        except Exception as e:
-            print(e)
-    exit(1)
 
 
 def migrate_files(directory, destination):
@@ -270,6 +263,7 @@ def migrate_files(directory, destination):
                                         filename) ).replace('\\', '/')
 
 
+
 def migrate_views():
     return ([ MAIN_ROUTE("", "load_root", "index") ] + 
             [ MAIN_ROUTE(
@@ -279,14 +273,17 @@ def migrate_views():
             ) for r in migrate_files("dev/views", "views") ])
 
 
+
 def get_api_routes(): # TODO: multiple file support here?
     with open( join(SCRIPT_DIR, "dev/py", "routes.py"), 'r') as f: 
         return f.read()
 
 
+
 def migrate_static_files(source, destination):
     return [ STATIC_ROUTE(r, r.split("/")[-1], destination)
                 for r in migrate_files(source, destination) ]
+
 
 
 def generate_favicon_resources(): # TODO: adhere to ! ~ rules?
@@ -305,9 +302,9 @@ def generate_favicon_resources(): # TODO: adhere to ! ~ rules?
     # generate favicon resources
     for res in (list(set(ico_res) | set(fav_res)) + android_res + apple_res):
         # TODO: add exception checking
-        if res in android_res: path = fav_path(and_tpl(res))
-        elif res in apple_res: path = fav_path(app_tpl(res))
-        else:                  path = fav_path(fav_tpl(res))
+        if res in android_res: path = abspath( fav_path(and_tpl(res)) )
+        elif res in apple_res: path = abspath( fav_path(app_tpl(res)) )
+        else:                  path = abspath( fav_path(fav_tpl(res)) )
         # TODO: this wont work if there are android and ios duplicates
         sCall("inkscape", "-z", "-e", path, "-w", res, "-h", res, favicon_tpl)
     # TODO: theres gotta be a cleaner way than this (bet i can get it on 1 line)
@@ -325,6 +322,7 @@ def generate_favicon_resources(): # TODO: adhere to ! ~ rules?
             [ fav_route(pra_tpl(r)) for r in apple_res if r!="57" ] +
             [ app_route("apple-touch-icon.png", app_tpl),
               app_route("apple-touch-icon-precomposed.png", pra_tpl) ])
+
 
 
 def generate_stylesheets(): # TODO: adhere to ! ~ rules?
@@ -360,16 +358,27 @@ def generate_stylesheets(): # TODO: adhere to ! ~ rules?
     sass_path = relpath(dev_path, os.getcwd()).replace('\\', '/')
     if args.deploy:
         for s in stylesheets:
+            # TODO: update sass to fix this bug
+            #sCall("sass", sass_path+"/"+s+".scss", "static/css/"+s+".min.css", 
+            #      "-t", "compressed", "--sourcemap=none", "-C")
+            
+            # temporary fix
             sCall("sass", sass_path+"/"+s+".scss", "static/css/"+s+".min.css", 
-                  "-t", "compressed", "--sourcemap=none", "-C")
+                  "-t", "compressed", "-C")
         os.remove( join(dev_path, "_all.scss") )
-    else: # TODO: if dev mode add sass maps to routes
+    else: # TODO: if dev mode add sass maps to routes (i think it will)
         Template.populate(WATCH_SASS_SCRIPT, '../dev/sass/watch.py')
         sPopen( 'python', '../dev/sass/watch.py', *stylesheets )
         sleep(3) # delay so the stylesheets have time to be created
 
     # return css routes from generated stylesheets
     return [ STATIC_ROUTE(f, f, "static/css") for f in os.listdir("static/css")]
+
+
+
+def generate_javascript():
+    if not isdir("static/js"): os.makedirs("static/js")
+    return [ STATIC_ROUTE(f, f, "static/js") for f in os.listdir("static/js")]
 
 
 
@@ -381,11 +390,12 @@ os.makedirs("www")
 os.chdir("www") # all operations will happen relative to www
 #os.chdir(join(args.path, "www"))
 
-# import bottle framework
-bottle_url = ( "https://raw.githubusercontent.com/"
-                "bottlepy/bottle/master/bottle.py" )
-with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
-    copyfileobj(response, f)
+# import bottle framework 
+# TODO: something here to account for offline use?
+# bottle_url = ( "https://raw.githubusercontent.com/"
+#                 "bottlepy/bottle/master/bottle.py" )
+# with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
+#     copyfileobj(response, f)
 
 # generate app.py
 # TODO: hide headers if there are no routes for that section?
@@ -398,12 +408,34 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
     image_routes=migrate_static_files("res/img", "static/img"),
     font_routes=migrate_static_files("res/font", "static/font"),
     css_routes=generate_stylesheets(),
-    js_routes="" )
+    js_routes=generate_javascript() )
+
+# generate head template
+# TODO: have default if ~head.tpl not present?
+# TODO: don't bothering copying head over in migrate views?
+if isfile('views/~head.tpl'): os.remove('views/~head.tpl')
+head_tpl = ""
+with open(join(SCRIPT_DIR, "dev/views/~head.tpl"), 'r') as head:
+    head_tpl = head.read()
+# TODO: decide when not to convert these meta tags
+metas = [ "Favicon_Resources", "Open_Graph", "Style_Sheets" ]
+for meta in metas:
+    head_tpl = head_tpl.replace(
+        '<meta name="'+meta.lower()+'">',
+        '\n$wh{'+meta.replace('_', ' ')+'}\n${'+meta.lower()+'}'
+    )
+Template.populate(Template(head_tpl), 'views/~head.tpl',
+    favicon_resources="",
+    open_graph="",
+    style_sheets="" )
 
 
 exit(0)
 # note, everything needs a unique name using this method
 # head is generated by inspecting www and seeing what files are there
+
+
+
 
 
 print("  --  Generating stylesheets") ##########################################
@@ -437,15 +469,21 @@ try:
                         import_array.append(import_string)
         for string in import_array:
             f.write(string)
-    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), "www/static/css").replace('\\', '/')
-    stylesheet_tpl = "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n"
+    sass_path = os.path.join(os.path.relpath(args.path, os.getcwd()), 
+        "www/static/css").replace('\\', '/')
+    stylesheet_tpl = (
+        "    <link href=\"{}.css\" rel=\"stylesheet\" type=\"text/css\">\n")
     stylesheets = [ os.path.splitext(x)[0] for x in stylesheets ]
     if '_all' in stylesheets: stylesheets.remove('_all')
-    if 'styles' in stylesheets: css_head_string += stylesheet_tpl.format('styles.min' if args.deploy else 'styles')
+    if 'styles' in stylesheets: 
+        css_head_string += stylesheet_tpl.format(
+            'styles.min' if args.deploy else 'styles'
+        )
     if args.deploy:
         for name in stylesheets:
             subprocess.call(
-                "sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(name, sass_path), shell=True)
+"sass {0}.scss {1}/{0}.min.css -t compressed --sourcemap=none -C".format(
+                name, sass_path), shell=True)
         os.remove("_all.scss")
     else: # TODO: if dev mode add sass maps to routes
         WATCH_SASS_SCRIPT.populate('watch.py')
@@ -456,7 +494,8 @@ try:
             subprocess.Popen([sys.executable, 'watch.py', sass_path] + stylesheets)
     if 'styles' in stylesheets: stylesheets.remove('styles')
     css_head_string += "    % if template in {}:\n".format(stylesheets)
-    css_head_string += stylesheet_tpl.format('{{template}}.min' if args.deploy else '{{template}}')
+    css_head_string += stylesheet_tpl.format('{{template}}.min' if args.deploy \
+        else '{{template}}')
     css_head_string += "    % end"
 except Exception as e:
     fatal_exception(e, "Could not generate stylesheets")

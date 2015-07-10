@@ -7,7 +7,7 @@
 
     <meta name="description" content="{{description}}">
     <meta name="author" content="Nick Balboni">
-    <meta name="favicon_elements">
+    <meta name="favicon_resources">
     <meta name="open_graph">
-    <meta name="stylesheets">
+    <meta name="style_sheets">
 </head>
