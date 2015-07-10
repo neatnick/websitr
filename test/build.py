@@ -88,6 +88,7 @@ class TemplateWrapper():
                 # TODO: rather than having all of these template objects I could
                 #       just convert from a string to a template here
                 #       i.e. : template = Template(template)
+                #       youd have to move header generation to populate
                 f.write(template.safe_substitute(**kwargs))
         except Exception as exception:
             raise exception
@@ -382,6 +383,38 @@ def generate_javascript():
 
 
 
+def get_favicon_head():
+    return ""
+
+
+
+def get_opengraph_head():
+    og_head_string = """\
+    % url = request.environ['HTTP_HOST']
+    <meta property="og:url" content="http://{{url}}/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{title}}">
+    <meta property="open_graph_image">
+    <meta property="og:description" content="{{description}}">"""
+    og_image_string = """<meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="300">
+    <meta property="og:image:height" content="300">
+    <meta property="og:image" content="http://{{url}}/favicon-300x300.png">
+    <meta property="og:image:url" content="http://{{url}}/favicon-300x300.png">""" 
+    if isfile("static/favicon/favicon-300x300.png"):
+        og_head_string = og_head_string.replace(
+            '<meta property="open_graph_image">', 
+            og_image_string
+        )
+    return og_head_string
+
+
+
+def get_stylesheet_head():
+    return ""
+
+
+
 rmtree('www')
 
 
@@ -425,9 +458,9 @@ for meta in metas:
         '\n$wh{'+meta.replace('_', ' ')+'}\n${'+meta.lower()+'}'
     )
 Template.populate(Template(head_tpl), 'views/~head.tpl',
-    favicon_resources="",
-    open_graph="",
-    style_sheets="" )
+    favicon_resources=get_favicon_head(),
+    open_graph=get_opengraph_head(),
+    style_sheets=get_stylesheet_head() )
 
 
 exit(0)
