@@ -359,13 +359,8 @@ def generate_stylesheets(): # TODO: adhere to ! ~ rules?
     sass_path = relpath(dev_path, os.getcwd()).replace('\\', '/')
     if args.deploy:
         for s in stylesheets:
-            # TODO: update sass to fix this bug
-            #sCall("sass", sass_path+"/"+s+".scss", "static/css/"+s+".min.css", 
-            #      "-t", "compressed", "--sourcemap=none", "-C")
-            
-            # temporary fix
             sCall("sass", sass_path+"/"+s+".scss", "static/css/"+s+".min.css", 
-                  "-t", "compressed", "-C")
+                  "-t", "compressed", "--sourcemap=none", "-C")
         os.remove( join(dev_path, "_all.scss") )
     else: # TODO: if dev mode add sass maps to routes (i think it will)
         Template.populate(WATCH_SASS_SCRIPT, '../dev/sass/watch.py')
@@ -384,6 +379,13 @@ def generate_javascript():
 
 
 def get_favicon_head():
+    # TODO: revisit this at some point
+    link_tpl   = lambda c: ('    <link', c, '>\n')
+    all_favs   = os.listdir('static/favicon')
+    favicons   = [ x for x in all_favs if x.startswith('favicon') ]
+    apple_favs = [ x for x in all_favs if x.startswith('apple')   ]
+    print( "\n".join(favicons) )
+    print( "\n" )
     return ""
 
 
