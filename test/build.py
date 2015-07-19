@@ -237,7 +237,7 @@ from os.path import relpath, abspath, normpath, join, isfile, isdir, splitext
 from shutil import copy, copyfileobj, rmtree
 from urllib.request import urlopen
 from time import sleep
-from re import match
+from re import match, search
 from sys import exit
 
 SCRIPT_DIR   = os.getcwd()
@@ -384,8 +384,20 @@ def get_favicon_head():
     all_favs   = os.listdir('static/favicon')
     favicons   = [ x for x in all_favs if x.startswith('favicon') ]
     apple_favs = [ x for x in all_favs if x.startswith('apple')   ]
-    print( "\n".join(favicons) )
-    print( "\n" )
+    # TODO: instead of greping and sorting could just use predefined arrays in
+    #       the generation stage (this way mantains independence of modules tho)
+    apple_dic = {}
+    for fav in apple_favs:
+        res = int(search(r'([0-9]+)x', fav).group(1))
+        apple_dic[res] = fav
+    apple_favs = []
+    keys = list(apple_dic.keys())
+    keys.sort()
+    for key in keys:
+        apple_favs.append(apple_dic[key])
+    apple_favs.reverse()
+    #print( "\n".join(favicons) )
+    print( "\n".join(apple_favs) )
     return ""
 
 
