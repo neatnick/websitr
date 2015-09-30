@@ -6,6 +6,9 @@ Things to Note:
 - ! before file or folder means the file or contents of the folder don't get
   get copied into www, ~ before file or folder means that routes are not created
   for that file or that the contents of that folder.
+- any .scss file in the root of sass will be converted into it's own stylesheet
+  this stylesheet will then be used if the template name matches the stylesheet
+  name default styles.scss will always be used if it is available
 
 
 General TODO:
@@ -13,6 +16,8 @@ General TODO:
 - Minimize js on deploy
 - Rethink apple touch icons should "/apple-touch-icon.png" point to 180x180 
   instead of 57x57?
+- Expand template wrapper to take templates as arguments and properly position
+  them
 
 '''
 
@@ -61,7 +66,7 @@ class TemplateWrapper():
 
     def __init__(self, cls):
         PYTHON_LL = 80
-        HTML_LL   = 120
+        HTML_LL   = 112
 
         self.cls = cls
         self.headers = [
@@ -155,8 +160,8 @@ from inspect import getframeinfo, currentframe
 from os.path import dirname, abspath
 import os
 
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+parser = ArgumentParser(
+    formatter_class=ArgumentDefaultsHelpFormatter,
     description=__doc__ )                                
 parser.add_argument('-d', '--deploy',
     action='store_true',
@@ -392,7 +397,7 @@ def generate_javascript(): # TODO: minimize js on deploy?
                            # TODO: javascript preprocessor?
     #if not isdir("static/js"): os.makedirs("static/js")
     #return [ STATIC_ROUTE(f, f, "static/js") for f in os.listdir("static/js")]
-    return migrate_static_files("dev/js", "static/js"),
+    return migrate_static_files("dev/js", "static/js")
 
 
 
@@ -420,7 +425,7 @@ def get_favicon_head():
     apple_keys = list(apple_dic.keys())
     apple_keys.sort()
     apple_keys.reverse()
-    apl_tpl = 'rel="apple-touch-icon" sizes="{0}x{0}" href="{1}"'
+    apl_tpl = 'rel="apple-touch-icon" sizes="{0}x{0}" href="/{1}"'
     for key in apple_keys:
         fav_head += link_tpl( apl_tpl.format(key, apple_dic[key]) )
         all_favs.remove(apple_dic[key])
@@ -433,7 +438,7 @@ def get_favicon_head():
     fav_keys = list(fav_dict.keys())
     fav_keys.sort()
     fav_keys.reverse()
-    fav_tpl = 'rel="icon" type="image/png" sizes="{0}x{0}" href="{1}"'
+    fav_tpl = 'rel="icon" type="image/png" sizes="{0}x{0}" href="/{1}"'
     for key in fav_keys:
         fav_head += link_tpl( fav_tpl.format(key, fav_dict[key]) )
         all_favs.remove(fav_dict[key])
@@ -446,7 +451,7 @@ def get_favicon_head():
     android_keys = list(android_dic.keys())
     android_keys.sort()
     android_keys.reverse()
-    android_tpl = 'rel="icon" sizes="{0}x{0}" href="{1}"'
+    android_tpl = 'rel="icon" sizes="{0}x{0}" href="/{1}"'
     for key in android_keys:
         fav_head += link_tpl( android_tpl.format(key, android_dic[key]) )
 
@@ -477,7 +482,20 @@ def get_opengraph_head():
 
 
 def get_stylesheet_head():
-    return ""
+    styles_tpl  = '    <link rel="stylesheet" type="text/css" href="/{0}">\n'
+    stylesheets = os.listdir('static/css')
+    styles_head = ''
+    for style in stylesheets:
+        if style.split('.')[0] == 'styles':
+            styles_head += styles_tpl.format(style)
+            stylesheets.remove(style)
+            break
+    stylesheets = [ s.split('.')[0] for s in stylesheets ]
+    styles_head += "    % if template in {}:\n".format(stylesheets)
+    tpl_style = '{{template}}.min.css' if args.deploy else '{{template}}.css'
+    styles_head += styles_tpl.format(tpl_style)
+    styles_head += "    % end"
+    return styles_head
 
 
 
@@ -490,10 +508,10 @@ os.chdir("www") # all operations will happen relative to www
 
 # import bottle framework 
 # TODO: something here to account for offline use?
-# bottle_url = ( "https://raw.githubusercontent.com/"
-#                 "bottlepy/bottle/master/bottle.py" )
-# with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
-#     copyfileobj(response, f)
+bottle_url = ( "https://raw.githubusercontent.com/"
+               "bottlepy/bottle/master/bottle.py" )
+with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
+    copyfileobj(response, f)
 
 
 ### Generate App.py ############################################################
