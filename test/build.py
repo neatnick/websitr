@@ -1,4 +1,20 @@
+'''
 
+Things to Note:
+
+- Independence of function to allow for implementation of a watch mode
+- ! before file or folder means the file or contents of the folder don't get
+  get copied into www, ~ before file or folder means that routes are not created
+  for that file or that the contents of that folder.
+
+
+General TODO:
+- Watch mode
+- Minimize js on deploy
+- Rethink apple touch icons should "/apple-touch-icon.png" point to 180x180 
+  instead of 57x57?
+
+'''
 
 
 ################################################################################
@@ -372,33 +388,69 @@ def generate_stylesheets(): # TODO: adhere to ! ~ rules?
 
 
 
-def generate_javascript():
-    if not isdir("static/js"): os.makedirs("static/js")
-    return [ STATIC_ROUTE(f, f, "static/js") for f in os.listdir("static/js")]
+def generate_javascript(): # TODO: minimize js on deploy? 
+                           # TODO: javascript preprocessor?
+    #if not isdir("static/js"): os.makedirs("static/js")
+    #return [ STATIC_ROUTE(f, f, "static/js") for f in os.listdir("static/js")]
+    return migrate_static_files("dev/js", "static/js"),
 
 
 
 def get_favicon_head():
     # TODO: revisit this at some point
-    link_tpl   = lambda c: ('    <link', c, '>\n')
+    link_tpl   = lambda c: '    <link {0}>\n'.format(c)
     all_favs   = os.listdir('static/favicon')
     favicons   = [ x for x in all_favs if x.startswith('favicon') ]
     apple_favs = [ x for x in all_favs if x.startswith('apple')   ]
+    
     # TODO: instead of greping and sorting could just use predefined arrays in
     #       the generation stage (this way mantains independence of modules tho)
+    
+    fav_head = link_tpl('rel="shortcut icon" href="favicon.ico"')
+    favicons.remove('favicon.ico')
+    all_favs.remove('favicon.ico')
+
+    # TODO: refactor into a generator function<- do this it'll be fucking toasty
+
+    # sort out apple touch icons
     apple_dic = {}
     for fav in apple_favs:
         res = int(search(r'([0-9]+)x', fav).group(1))
         apple_dic[res] = fav
-    apple_favs = []
-    keys = list(apple_dic.keys())
-    keys.sort()
-    for key in keys:
-        apple_favs.append(apple_dic[key])
-    apple_favs.reverse()
-    #print( "\n".join(favicons) )
-    print( "\n".join(apple_favs) )
-    return ""
+    apple_keys = list(apple_dic.keys())
+    apple_keys.sort()
+    apple_keys.reverse()
+    apl_tpl = 'rel="apple-touch-icon" sizes="{0}x{0}" href="{1}"'
+    for key in apple_keys:
+        fav_head += link_tpl( apl_tpl.format(key, apple_dic[key]) )
+        all_favs.remove(apple_dic[key])
+    
+    # deal with  misc favs
+    fav_dict = {}
+    for fav in favicons:
+        res = int(search(r'([0-9]+)x', fav).group(1))
+        fav_dict[res] = fav
+    fav_keys = list(fav_dict.keys())
+    fav_keys.sort()
+    fav_keys.reverse()
+    fav_tpl = 'rel="icon" type="image/png" sizes="{0}x{0}" href="{1}"'
+    for key in fav_keys:
+        fav_head += link_tpl( fav_tpl.format(key, fav_dict[key]) )
+        all_favs.remove(fav_dict[key])
+
+    # TODO: better flexibility with android
+    android_dic = {}
+    for fav in all_favs:
+        res = int(search(r'([0-9]+)x', fav).group(1))
+        android_dic[res] = fav
+    android_keys = list(android_dic.keys())
+    android_keys.sort()
+    android_keys.reverse()
+    android_tpl = 'rel="icon" sizes="{0}x{0}" href="{1}"'
+    for key in android_keys:
+        fav_head += link_tpl( android_tpl.format(key, android_dic[key]) )
+
+    return fav_head
 
 
 
@@ -429,8 +481,7 @@ def get_stylesheet_head():
 
 
 
-rmtree('www')
-
+#rmtree('www')
 
 os.chdir(args.path)
 os.makedirs("www")
@@ -444,7 +495,8 @@ os.chdir("www") # all operations will happen relative to www
 # with urlopen(bottle_url) as response, open('bottle.py', 'wb') as f:
 #     copyfileobj(response, f)
 
-# generate app.py
+
+### Generate App.py ############################################################
 # TODO: hide headers if there are no routes for that section?
 Template.populate(APP_PY_TEMPLATE, 'app.py', 
     doc_string="",
@@ -457,7 +509,8 @@ Template.populate(APP_PY_TEMPLATE, 'app.py',
     css_routes=generate_stylesheets(),
     js_routes=generate_javascript() )
 
-# generate head template
+
+### Generate Head Template #####################################################
 # TODO: have default if ~head.tpl not present?
 # TODO: don't bothering copying head over in migrate views?
 if isfile('views/~head.tpl'): os.remove('views/~head.tpl')
