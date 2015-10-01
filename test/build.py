@@ -402,58 +402,34 @@ def generate_javascript(): # TODO: minimize js on deploy?
 
 
 def get_favicon_head():
-    # TODO: revisit this at some point
-    link_tpl   = lambda c: '    <link {0}>\n'.format(c)
-    all_favs   = os.listdir('static/favicon')
-    favicons   = [ x for x in all_favs if x.startswith('favicon') ]
-    apple_favs = [ x for x in all_favs if x.startswith('apple')   ]
-    
+    link_tpl     = lambda c: '    <link {0}>\n'.format(c)
+    all_favs     = os.listdir('static/favicon')
+    favicons     = [ x for x in all_favs if x.startswith('favicon') ]
+    apple_favs   = [ x for x in all_favs if x.startswith('apple')   ]
+    android_favs = [ x for x in all_favs if not x in favicons + apple_favs ]
+
     # TODO: instead of greping and sorting could just use predefined arrays in
     #       the generation stage (this way mantains independence of modules tho)
     
     fav_head = link_tpl('rel="shortcut icon" href="favicon.ico"')
     favicons.remove('favicon.ico')
-    all_favs.remove('favicon.ico')
 
-    # TODO: refactor into a generator function<- do this it'll be fucking toasty
+    def gen_head(fav_tpl, fav_set):
+        dic = {}
+        for fav in fav_set:
+            res = int(search(r'([0-9]+)x', fav).group(1))
+            dic[res] = fav
+        keys = list(dic.keys())
+        keys.sort()
+        keys.reverse()
+        for key in keys:
+            yield link_tpl( fav_tpl.format(key, dic[key]) )
 
-    # sort out apple touch icons
-    apple_dic = {}
-    for fav in apple_favs:
-        res = int(search(r'([0-9]+)x', fav).group(1))
-        apple_dic[res] = fav
-    apple_keys = list(apple_dic.keys())
-    apple_keys.sort()
-    apple_keys.reverse()
-    apl_tpl = 'rel="apple-touch-icon" sizes="{0}x{0}" href="/{1}"'
-    for key in apple_keys:
-        fav_head += link_tpl( apl_tpl.format(key, apple_dic[key]) )
-        all_favs.remove(apple_dic[key])
-    
-    # deal with  misc favs
-    fav_dict = {}
-    for fav in favicons:
-        res = int(search(r'([0-9]+)x', fav).group(1))
-        fav_dict[res] = fav
-    fav_keys = list(fav_dict.keys())
-    fav_keys.sort()
-    fav_keys.reverse()
-    fav_tpl = 'rel="icon" type="image/png" sizes="{0}x{0}" href="/{1}"'
-    for key in fav_keys:
-        fav_head += link_tpl( fav_tpl.format(key, fav_dict[key]) )
-        all_favs.remove(fav_dict[key])
-
-    # TODO: better flexibility with android
-    android_dic = {}
-    for fav in all_favs:
-        res = int(search(r'([0-9]+)x', fav).group(1))
-        android_dic[res] = fav
-    android_keys = list(android_dic.keys())
-    android_keys.sort()
-    android_keys.reverse()
-    android_tpl = 'rel="icon" sizes="{0}x{0}" href="/{1}"'
-    for key in android_keys:
-        fav_head += link_tpl( android_tpl.format(key, android_dic[key]) )
+    for fav_set in [ 
+        ('rel="icon" sizes="{0}x{0}" href="/{1}"', android_favs), 
+        ('rel="apple-touch-icon" sizes="{0}x{0}" href="/{1}"', apple_favs),
+        ('rel="icon" type="image/png" sizes="{0}x{0}" href="/{1}"', favicons) ]:
+        fav_head += "".join( gen_head(*fav_set) )
 
     return fav_head
 
